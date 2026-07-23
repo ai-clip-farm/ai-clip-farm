@@ -83,6 +83,23 @@ def _create(*, system: str, user: str, output_config: dict, max_tokens: int):
     )
 
 
+def _strict_schema(node: object) -> object:
+    """Recursively set `additionalProperties: false` on every object node
+    (including nested `$defs`). Claude's structured-output API rejects a
+    schema with a 400 unless every object node sets this explicitly, but
+    Pydantic's `model_json_schema()` never sets it — discovered against the
+    real API, not something a type checker or the docs would have caught."""
+    if isinstance(node, dict):
+        if node.get("type") == "object" or "properties" in node:
+            node.setdefault("additionalProperties", False)
+        for value in node.values():
+            _strict_schema(value)
+    elif isinstance(node, list):
+        for item in node:
+            _strict_schema(item)
+    return node
+
+
 def parse(
     *,
     system: str,
@@ -96,7 +113,7 @@ def parse(
         "effort": settings.claude_effort,
         "format": {
             "type": "json_schema",
-            "schema": schema.model_json_schema(),
+            "schema": _strict_schema(schema.model_json_schema()),
         },
     }
 

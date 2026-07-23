@@ -105,7 +105,17 @@ class TestHardwareEncoderFallback:
         args = ffmpeg_utils._video_encoder_args()
         assert args[:2] == ["-c:v", "libx264"]
 
-    def test_run_encode_retries_with_libx264_on_hw_failure(self, mocker):
+    def test_run_encode_retries_with_libx264_on_hw_failure(self, mocker, test_settings):
+        # Built from the real `_video_encoder_args()` shape (-c:v h264_nvenc
+        # -preset p4 -cq N), not a hand-rolled shorter stand-in — a shorter
+        # fake previously masked a real bug where the fallback spliced out
+        # only "-c:v <encoder>" and left the rest of the encoder's own flags
+        # (-preset p4, -cq N's value) behind as stray positional args that
+        # ffmpeg then misread as an extra output filename.
+        test_settings.ffmpeg_hwaccel = "nvenc"
+        mocker.patch("app.core.gpu.nvidia_smi_available", return_value=True)
+        ffmpeg_utils.ffmpeg_hwaccel_encoder.cache_clear()
+
         calls = []
 
         def fake_run(cmd, timeout=None):
@@ -115,14 +125,17 @@ class TestHardwareEncoderFallback:
             return "ok"
 
         mocker.patch("app.pipeline.ffmpeg_utils.run", side_effect=fake_run)
-        cmd = ["ffmpeg", "-i", "in.mp4", "-c:v", "h264_nvenc", "-cq", "20", "out.mp4"]
+        cmd = ["ffmpeg", "-i", "in.mp4", *ffmpeg_utils._video_encoder_args(), "out.mp4"]
 
         result = ffmpeg_utils._run_encode(cmd)
 
         assert result == "ok"
         assert len(calls) == 2
-        assert "libx264" in calls[1]
-        assert "-cq" not in calls[1]
+        fallback = calls[1]
+        assert "libx264" in fallback
+        assert "-cq" not in fallback
+        assert "p4" not in fallback  # stale NVENC preset value must not leak into the fallback
+        assert fallback[-1] == "out.mp4"  # trailing args must survive the splice
 
     def test_run_encode_does_not_retry_when_already_libx264(self, mocker):
         mocker.patch(

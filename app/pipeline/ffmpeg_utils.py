@@ -101,6 +101,16 @@ def extract_audio(src: str | Path, dst: str | Path, sample_rate: int = 16000) ->
     return dst
 
 
+#: Number of tokens each encoder's `-c:v ...` block occupies in the list
+#: `_video_encoder_args()` returns — e.g. h264_nvenc's block is
+#: `-c:v h264_nvenc -preset p4 -cq N` (6 tokens). `_run_encode`'s libx264
+#: fallback needs this to splice out exactly that span; slicing out only
+#: `-c:v <encoder>` (2 tokens) left the rest of the encoder's flags — e.g.
+#: `-cq 20` — behind as stray positional args, which ffmpeg then
+#: misinterpreted as an extra output filename (`20`) and failed on.
+_ENCODER_ARG_SPAN = {"h264_nvenc": 6, "h264_vaapi": 2, "h264_qsv": 2}
+
+
 def _video_encoder_args() -> list[str]:
     """Pick the fastest available encoder. Falls back to libx264 both when
     FFMPEG_HWACCEL=none and when hardware acceleration was requested but
@@ -121,25 +131,20 @@ def _run_encode(cmd: list[str]) -> str:
     try:
         return run(cmd)
     except FFmpegExecutionError:
-        if "-c:v" in cmd and cmd[cmd.index("-c:v") + 1] != "libx264":
-            logger.warning("Hardware encoder failed, retrying with libx264: {}", cmd[0])
-            idx = cmd.index("-c:v")
-            fallback = (
-                cmd[:idx]
-                + [
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    settings.ffmpeg_preset,
-                    "-crf",
-                    str(settings.ffmpeg_crf),
-                ]
-                + cmd[idx + 2 :]
-            )
-            # Strip any encoder-specific flags the fallback doesn't understand.
-            fallback = [a for a in fallback if a not in ("-cq",)]
-            return run(fallback)
-        raise
+        if "-c:v" not in cmd:
+            raise
+        idx = cmd.index("-c:v")
+        encoder = cmd[idx + 1]
+        if encoder == "libx264":
+            raise
+        logger.warning("Hardware encoder failed, retrying with libx264: {}", encoder)
+        span = _ENCODER_ARG_SPAN.get(encoder, 2)
+        fallback = (
+            cmd[:idx]
+            + ["-c:v", "libx264", "-preset", settings.ffmpeg_preset, "-crf", str(settings.ffmpeg_crf)]
+            + cmd[idx + span :]
+        )
+        return run(fallback)
 
 
 def cut_segment(src: str | Path, dst: str | Path, start: float, end: float) -> Path:
