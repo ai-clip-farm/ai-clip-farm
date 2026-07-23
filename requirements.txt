@@ -3,8 +3,8 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
 pydantic-settings==2.7.1
-python-multipart==0.0.20
-jinja2==3.1.5
+python-multipart==0.0.32
+jinja2==3.1.6
 
 # ---- Claude ----
 # Needs a build new enough for output_config/effort, adaptive thinking,
@@ -17,19 +17,21 @@ redis==5.2.1
 flower==2.0.1
 
 # ---- Database ----
-sqlalchemy==2.0.36
-alembic==1.14.0
+sqlalchemy==2.0.51
+alembic==1.18.5
 psycopg[binary]==3.2.3
 
 # ---- Transcription (local Whisper) ----
-faster-whisper==1.1.0
+faster-whisper==1.2.1
 # huggingface_hub (a faster-whisper dependency, used for model downloads)
 # imports `requests` directly but doesn't always pull it in transitively
 # depending on the resolver — pin it explicitly rather than rely on that.
 requests>=2.31,<3.0
 
 # ---- Media ingest ----
-yt-dlp>=2024.12.23
+# >=2026.7.4: fixes CVE-2026-55404 (command injection via unsanitized
+# --write-link output)
+yt-dlp>=2026.7.4
 
 # ---- Speaker tracking / vision ----
 # 0.10.18, not a newer version: mediapipe only publishes linux_aarch64 wheels
@@ -41,7 +43,7 @@ opencv-python-headless==4.10.0.84
 numpy==1.26.4
 
 # ---- Security ----
-slowapi==0.1.9
+slowapi==0.1.10
 
 # ---- Monitoring ----
 prometheus-client==0.21.1
@@ -53,6 +55,6 @@ prometheus-fastapi-instrumentator==7.0.0
 # resolution conflict on upgrade. `>=` keeps us compatible with whatever
 # anthropic requires while still excluding known-broken major versions.
 httpx>=0.27,<1.0
-tenacity==9.0.0
+tenacity==9.1.4
 python-slugify==8.0.4
 loguru==0.7.3
