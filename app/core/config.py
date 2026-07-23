@@ -190,9 +190,16 @@ def generate_api_key() -> str:
 
 @lru_cache
 def get_settings() -> Settings:
-    s = Settings()
-    s.ensure_dirs()
-    return s
+    # Deliberately does NOT call ensure_dirs() here: this factory runs on
+    # every import of this module, including by tooling that never touches
+    # the filesystem (alembic/env.py, one-off scripts, CI's migration-only
+    # job on a bare runner with no /data mount). Forcing directory creation
+    # as an import side effect meant `alembic upgrade head` crashed with
+    # PermissionError on a host that has no reason to need /data at all.
+    # The actual entry points that read/write those directories (the API's
+    # lifespan startup, the Celery worker's process-init hook) call
+    # ensure_dirs() explicitly instead.
+    return Settings()
 
 
 settings = get_settings()

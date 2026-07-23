@@ -66,6 +66,8 @@ def _init_worker_metrics(**_kwargs) -> None:
 
     from app.core.metrics import start_worker_metrics_server
 
+    settings.ensure_dirs()
+
     if settings.metrics_enabled:
         port = int(os.environ.get("WORKER_METRICS_PORT", "9100"))
         start_worker_metrics_server(port)

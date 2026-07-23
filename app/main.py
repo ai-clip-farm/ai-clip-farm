@@ -39,6 +39,8 @@ from app.core.security import limiter
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    settings.ensure_dirs()
+
     if settings.environment != "production":
         Base.metadata.create_all(bind=engine)
         logger.info("Dev mode: tables ensured via create_all (use Alembic in production)")
