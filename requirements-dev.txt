@@ -5,7 +5,7 @@ pytest==8.3.4
 pytest-cov==6.0.0
 pytest-mock==3.14.0
 pytest-asyncio==0.25.2
-freezegun==1.5.1
+freezegun==1.5.5
 faker==33.3.0
 
 # ---- HTTP test client (FastAPI's TestClient needs this transitively too) ----

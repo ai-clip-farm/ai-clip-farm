@@ -3,8 +3,8 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
 pydantic-settings==2.7.1
-python-multipart==0.0.20
-jinja2==3.1.5
+python-multipart==0.0.32
+jinja2==3.1.6
 
 # ---- Claude ----
 # Needs a build new enough for output_config/effort, adaptive thinking,
@@ -17,7 +17,7 @@ redis==5.2.1
 flower==2.0.1
 
 # ---- Database ----
-sqlalchemy==2.0.36
+sqlalchemy==2.0.51
 alembic==1.14.0
 psycopg[binary]==3.2.3
 
@@ -36,12 +36,12 @@ yt-dlp>=2024.12.23
 # up to 0.10.18 on PyPI (0.10.20 is x86_64-only), and the Docker image is
 # built for linux/amd64 + linux/arm64 both — a version with no aarch64 wheel
 # fails that platform's `pip install` under QEMU emulation in CI.
-mediapipe==0.10.18
+mediapipe==0.10.35
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
 
 # ---- Security ----
-slowapi==0.1.9
+slowapi==0.1.10
 
 # ---- Monitoring ----
 prometheus-client==0.21.1
