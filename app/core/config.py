@@ -8,6 +8,7 @@ All enum-like fields use `Literal` so a typo in `.env` (e.g. `WHISPER_DEVICE=gpu
 instead of `cuda`) fails fast at process startup instead of surfacing as an
 obscure runtime error hours into a batch run.
 """
+
 from __future__ import annotations
 
 import secrets
@@ -22,9 +23,7 @@ Environment = Literal["development", "staging", "production"]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # --- Runtime environment ---
     environment: Environment = "development"
@@ -92,8 +91,8 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://redis:6379/0"
     celery_result_backend: str = "redis://redis:6379/1"
     render_concurrency: int = 2
-    celery_task_soft_time_limit: int = 3600 * 2   # allow cleanup before kill
-    celery_task_time_limit: int = 3600 * 3        # hard SIGKILL ceiling
+    celery_task_soft_time_limit: int = 3600 * 2  # allow cleanup before kill
+    celery_task_time_limit: int = 3600 * 3  # hard SIGKILL ceiling
 
     # --- API ---
     api_host: str = "0.0.0.0"
@@ -101,7 +100,7 @@ class Settings(BaseSettings):
     api_base_url: str = "http://localhost:8000"
     log_level: str = "INFO"
     log_json: bool = False
-    cors_origins: str = "http://localhost:8000"   # comma-separated
+    cors_origins: str = "http://localhost:8000"  # comma-separated
     docs_enabled: bool = True
 
     # --- Security ---
@@ -121,7 +120,7 @@ class Settings(BaseSettings):
     # --- Observability ---
     metrics_enabled: bool = True
     sentry_dsn: str = ""
-    slack_webhook_url: str = ""   # optional failed-job alerting
+    slack_webhook_url: str = ""  # optional failed-job alerting
 
     def ensure_dirs(self) -> None:
         for d in (self.input_dir, self.work_dir, self.output_dir):
@@ -151,7 +150,7 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def _validate_production_invariants(self) -> "Settings":
+    def _validate_production_invariants(self) -> Settings:
         if self.environment == "production":
             problems = []
             if not self.anthropic_api_key:

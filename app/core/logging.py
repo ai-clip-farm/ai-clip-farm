@@ -9,6 +9,7 @@ logs. Supports two modes:
 `extra` fields are automatically included in JSON mode so a single request
 can be traced across the API and, via the Celery task ID, into worker logs.
 """
+
 from __future__ import annotations
 
 import sys

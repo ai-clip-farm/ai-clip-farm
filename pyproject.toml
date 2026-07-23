@@ -29,6 +29,19 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection idiom is `param: T = Depends(...)` /
+# `= File(...)` / `= Form(...)` — a function call in an argument default is
+# exactly how FastAPI is designed to be used, not the mutable-default-arg
+# footgun B008 exists to catch. Telling ruff these specific calls are
+# immutable/safe suppresses the false positive without disabling B008
+# (and its real protections) for the rest of the codebase.
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.File", "fastapi.Form",
+    "fastapi.Query", "fastapi.Header", "fastapi.Path",
+    "fastapi.Body", "fastapi.Security",
+]
+
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = false
@@ -41,6 +54,7 @@ exclude = ["alembic/", "tests/"]
 [[tool.mypy.overrides]]
 module = ["cv2.*", "mediapipe.*", "faster_whisper.*", "yt_dlp.*", "slowapi.*"]
 ignore_missing_imports = true
+
 
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -67,11 +81,13 @@ exclude_lines = [
     "raise NotImplementedError",
     "def __repr__",
 ]
-# The first real CI run hit a collection-time error (an unrelated FastAPI/
-# UploadFile bug in app/api/routes.py, now fixed) that aborted pytest before
-# any of the 169 collected tests actually ran, reporting a meaningless 38%.
-# Temporarily 0 so the *next* run reports a genuine number from a full test
-# pass instead of failing the build on a threshold nobody has verified yet.
-# Set this to match reality once that number is in, then ratchet toward 90 —
-# do not raise it without a green CI run backing the number.
-fail_under = 0
+# Verified for real: 186 passed / 1 skipped (the real-ffmpeg pipeline test,
+# which needs ffmpeg installed — it runs in CI, not on every dev machine),
+# 81% measured coverage, on a local Python 3.11 run with the full dependency
+# set installed (2026-07-23). Set a few points below the measured number as
+# headroom rather than exactly at it — CI's Linux runner + real ffmpeg
+# should land at or above this local Windows number, not below it (the
+# skipped real-ffmpeg test alone covers real reframe.py/ffmpeg_utils.py
+# paths this run couldn't reach). Ratchet toward 90 as coverage grows; only
+# raise it again backed by another verified green run, not a guess.
+fail_under = 75

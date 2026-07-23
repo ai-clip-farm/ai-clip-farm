@@ -17,6 +17,7 @@ blocks — a mid-loop exception (corrupt frame, disk full, OOM) used to leak
 file handles that accumulated across a day of unattended batch processing
 until the worker process ran out of descriptors.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -61,8 +62,15 @@ def reframe(src: str | Path, dst: Path, work: Path) -> Path:
 
         logger.info(
             "Reframe {}x{} -> crop {}x{} -> {}x{} ({} frames, backend={}, stride={})",
-            src_w, src_h, crop_w, crop_h, out_w, out_h, n_frames,
-            settings.tracking_backend, settings.face_detect_stride,
+            src_w,
+            src_h,
+            crop_w,
+            crop_h,
+            out_w,
+            out_h,
+            n_frames,
+            settings.tracking_backend,
+            settings.face_detect_stride,
         )
 
         centers = _track_centers(cap, src_w, n_frames)
@@ -79,9 +87,11 @@ def reframe(src: str | Path, dst: Path, work: Path) -> Path:
             raise RenderError(f"Cannot re-open {src} for rendering pass")
 
         silent = work / "reframed_silent.mp4"
-        writer = cv2.VideoWriter(
-            str(silent), cv2.VideoWriter_fourcc(*"mp4v"), fps, (out_w, out_h)
-        )
+        # cv2.VideoWriter_fourcc is a real runtime attribute missing from
+        # opencv-python-headless's bundled .pyi stub (a stub-completeness
+        # gap, not a real type error).
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
+        writer = cv2.VideoWriter(str(silent), fourcc, fps, (out_w, out_h))
         if not writer.isOpened():
             raise RenderError(f"Could not open VideoWriter for {silent}")
 
@@ -122,6 +132,7 @@ def reframe(src: str | Path, dst: Path, work: Path) -> Path:
 
 # --- Tracking backends --------------------------------------------------------
 
+
 def _track_centers(cap, src_w: int, n_frames: int) -> list[float | None]:
     backend = settings.tracking_backend
     if backend == "center":
@@ -152,9 +163,7 @@ def _detect_mediapipe(frame, src_w: int) -> float | None:
     res = _mediapipe_detector().process(rgb)
     if not res.detections:
         return None
-    best = max(
-        res.detections, key=lambda d: d.location_data.relative_bounding_box.width
-    )
+    best = max(res.detections, key=lambda d: d.location_data.relative_bounding_box.width)
     box = best.location_data.relative_bounding_box
     return (box.xmin + box.width / 2) * src_w
 
@@ -165,9 +174,11 @@ _cascade = None
 def _opencv_cascade():
     global _cascade
     if _cascade is None:
-        _cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        )
+        # cv2.data is a real runtime submodule missing from
+        # opencv-python-headless's bundled .pyi stub (same stub-completeness
+        # gap as VideoWriter_fourcc above, not a real type error).
+        haarcascades = cv2.data.haarcascades  # type: ignore[attr-defined]
+        _cascade = cv2.CascadeClassifier(haarcascades + "haarcascade_frontalface_default.xml")
     return _cascade
 
 
@@ -201,6 +212,7 @@ def _track_strided(cap, detect_fn) -> list[float | None]:
 
 
 # --- Trajectory smoothing -----------------------------------------------------
+
 
 def _smooth(centers: list[float | None], default: float, alpha: float = 0.12) -> list[float]:
     """Fill gaps (no face) with the last known centre, then apply an

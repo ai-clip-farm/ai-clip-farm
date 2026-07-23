@@ -23,6 +23,10 @@ psycopg[binary]==3.2.3
 
 # ---- Transcription (local Whisper) ----
 faster-whisper==1.1.0
+# huggingface_hub (a faster-whisper dependency, used for model downloads)
+# imports `requests` directly but doesn't always pull it in transitively
+# depending on the resolver — pin it explicitly rather than rely on that.
+requests>=2.31,<3.0
 
 # ---- Media ingest ----
 yt-dlp>=2024.12.23

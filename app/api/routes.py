@@ -15,6 +15,7 @@ not something request-specific. Safe to omit here: every annotation in this
 file (`str | None`, `list[str]`) is native Python 3.10+ runtime syntax
 (PEP 604 / PEP 585), so nothing here actually needed postponed evaluation.
 """
+
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -108,9 +109,7 @@ def upload_video(
             while chunk := file.file.read(1024 * 1024):
                 written += len(chunk)
                 if written > max_bytes:
-                    raise HTTPException(
-                        413, f"File exceeds {settings.max_upload_size_mb} MB limit"
-                    )
+                    raise HTTPException(413, f"File exceeds {settings.max_upload_size_mb} MB limit")
                 f.write(chunk)
     except HTTPException:
         dest.unlink(missing_ok=True)
@@ -157,10 +156,15 @@ def list_videos(
         count_stmt = count_stmt.where(Video.status == status)
 
     total = db.scalar(count_stmt) or 0
-    items = db.scalars(
-        stmt.order_by(Video.created_at.desc()).limit(limit).offset(offset)
-    ).all()
-    return Page(items=items, total=total, limit=limit, offset=offset)
+    items = db.scalars(stmt.order_by(Video.created_at.desc()).limit(limit).offset(offset)).all()
+    # `items` is Sequence[Video] (ORM rows); Page.items is typed list[VideoOut]
+    # (the Pydantic response schema). Pydantic v2 coerces each element via
+    # VideoOut's own from_attributes=True config at validation time — this
+    # is correct at runtime (identical to how every other route here returns
+    # a bare ORM object as its response_model), mypy just can't see through
+    # that pydantic-level coercion when the model is constructed explicitly
+    # in application code rather than returned straight to FastAPI.
+    return Page(items=items, total=total, limit=limit, offset=offset)  # type: ignore[arg-type]
 
 
 @router.get("/videos/{video_id}", response_model=VideoDetailOut)
@@ -204,7 +208,8 @@ def download_clip(clip_id: str, db: Session = Depends(get_db)):
         logger.error("Refusing to serve out-of-tree path for clip {}", clip_id)
         raise HTTPException(500, "Invalid stored path")
     return FileResponse(
-        clip.output_path, media_type="video/mp4",
+        clip.output_path,
+        media_type="video/mp4",
         filename=f"{clip.gen_title or clip.id}.mp4",
     )
 
@@ -225,10 +230,16 @@ def list_failed(db: Session = Depends(get_db)):
     (`clipfarm.failed_job_report`) summarizes — useful for the dashboard and
     for `curl`-based ops checks without waiting for the beat schedule."""
     videos = db.scalars(
-        select(Video).where(Video.status == JobStatus.failed).order_by(Video.updated_at.desc()).limit(50)
+        select(Video)
+        .where(Video.status == JobStatus.failed)
+        .order_by(Video.updated_at.desc())
+        .limit(50)
     ).all()
     clips = db.scalars(
-        select(Clip).where(Clip.status == ClipStatus.failed).order_by(Clip.updated_at.desc()).limit(50)
+        select(Clip)
+        .where(Clip.status == ClipStatus.failed)
+        .order_by(Clip.updated_at.desc())
+        .limit(50)
     ).all()
     return {
         "failed_videos": [{"id": v.id, "title": v.title, "error": v.error} for v in videos],

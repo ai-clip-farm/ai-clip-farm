@@ -4,6 +4,7 @@ Every function here raises `app.core.exceptions.ValidationError` (or a
 subclass) on bad input — never a bare `ValueError`/`AssertionError` — so
 callers can catch one type and turn it into a clean 400 response.
 """
+
 from __future__ import annotations
 
 import re

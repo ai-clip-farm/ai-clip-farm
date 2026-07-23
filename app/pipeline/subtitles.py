@@ -12,6 +12,7 @@ fallback font (via fontconfig) if the requested family isn't found, which
 looks wrong without ever raising an error, so we bundle the exact families we
 reference (`Anton`, `Montserrat`) rather than assuming a system default.
 """
+
 from __future__ import annotations
 
 import re
@@ -34,13 +35,13 @@ STYLE_PRESETS: dict[str, dict] = {
     "karaoke_bold": {
         "font": "DejaVu Sans",
         "fontsize": 110,
-        "primary": "&H00FFFFFF",       # inactive words: white
-        "highlight": "&H0000E5FF",     # active word: gold/yellow
+        "primary": "&H00FFFFFF",  # inactive words: white
+        "highlight": "&H0000E5FF",  # active word: gold/yellow
         "outline": "&H00000000",
         "outline_w": 6,
         "shadow": 3,
         "bold": -1,
-        "margin_v": 420,               # sit above centre, out of the lower third
+        "margin_v": 420,  # sit above centre, out of the lower third
         "words_per_line": 4,
     },
     "clean_white": {
@@ -137,9 +138,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         text = "".join(chunks).strip()
         # Pop-in scale animation for extra energy.
         text = f"{{\\fad(80,80)\\t(0,120,\\fscx110\\fscy110)\\t(120,240,\\fscx100\\fscy100)}}{text}"
-        events.append(
-            f"Dialogue: 0,{_fmt_time(l_start)},{_fmt_time(l_end)},Cap,,0,0,0,,{text}"
-        )
+        events.append(f"Dialogue: 0,{_fmt_time(l_start)},{_fmt_time(l_end)},Cap,,0,0,0,,{text}")
 
     if not events:
         raise RenderError("No transcript words found in the clip's time range")

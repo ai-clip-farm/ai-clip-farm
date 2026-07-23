@@ -33,7 +33,10 @@ jobs:
         run: ruff format --check app tests
       - name: mypy
         run: mypy app
-        continue-on-error: true  # advisory until the codebase is fully typed; tighten once green
+        # Blocking, not advisory: verified clean locally (0 errors, 31 files)
+        # after fixing every real finding — see commit history. If a future
+        # change makes this legitimately hard to satisfy, that's a signal to
+        # fix the typing, not to silently re-add continue-on-error.
 
   test:
     runs-on: ubuntu-latest

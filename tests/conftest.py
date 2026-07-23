@@ -13,6 +13,7 @@ If a test file does `from app.core.config import settings` before this
 module has run, the ordering guarantee breaks — always go through the
 fixtures below rather than importing `app.*` at module scope in test files.
 """
+
 from __future__ import annotations
 
 import os
@@ -59,6 +60,26 @@ def _isolate_settings():
     yield
     for key, value in original.items():
         setattr(settings, key, value)
+
+
+@pytest.fixture(autouse=True)
+def _clean_work_dirs():
+    """WORK_DIR/INPUT_DIR/OUTPUT_DIR are fixed session-lifetime paths (set up
+    once in this file, above) — nothing resets them between tests otherwise.
+    Different test files that happen to reuse a literal ID (e.g. two files
+    both using video_id="vid-1") will collide on a leftover directory a
+    prior test created and only partially cleaned up (cleanup helpers here
+    intentionally remove specific subdirectories, not blindly the whole
+    tree, mirroring production behavior — so a stray parent dir survives).
+    Wiping and recreating all three before each test closes that class of
+    ordering-dependent failure the same way `_clean_database` does for the
+    DB and `_isolate_settings` does for config."""
+    import shutil
+
+    for d in (settings.work_dir, settings.input_dir, settings.output_dir):
+        shutil.rmtree(d, ignore_errors=True)
+        d.mkdir(parents=True, exist_ok=True)
+    yield
 
 
 @pytest.fixture(autouse=True)

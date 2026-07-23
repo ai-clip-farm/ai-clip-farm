@@ -8,6 +8,7 @@ schema, run explicitly in the deploy pipeline before the new API version
 starts. Running both mechanisms against the same database is a classic way
 to get schema drift that silently breaks migrations later.
 """
+
 from __future__ import annotations
 
 import time
@@ -21,15 +22,19 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 
+# Imported for its side effect only (registers SQLAlchemy models on
+# Base.metadata before create_all() runs below) — never referenced by name.
+# Aliased rather than `import app.models` specifically because that form
+# binds the bare name `app` in this module's namespace, which then collides
+# with the local `app = FastAPI(...)` assignment further down: mypy (correctly)
+# treats that as reassigning a variable from Module type to FastAPI type.
+from app import models as _app_models  # noqa: F401
 from app.api.routes import router
 from app.core.config import settings
-from app.core.database import Base, engine, check_db_connection
+from app.core.database import Base, check_db_connection, engine
 from app.core.exceptions import ClipFarmError, ValidationError
 from app.core.logging import logger
 from app.core.security import limiter
-
-# Import models so metadata is populated before create_all.
-import app.models  # noqa: F401,E402
 
 
 @asynccontextmanager
@@ -43,7 +48,9 @@ async def lifespan(_app: FastAPI):
 
     logger.info(
         "AI Clip Farm API started (env={}, model={}, auth_enabled={})",
-        settings.environment, settings.claude_model, settings.auth_enabled,
+        settings.environment,
+        settings.claude_model,
+        settings.auth_enabled,
     )
     yield
     logger.info("AI Clip Farm API shutting down")
@@ -72,6 +79,7 @@ WEB_DIR = Path(__file__).parent / "web"
 
 # --- Middleware: request ID + timing (correlates logs across a single call) --
 
+
 @app.middleware("http")
 async def request_context(request: Request, call_next):
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
@@ -84,6 +92,7 @@ async def request_context(request: Request, call_next):
 
 
 # --- Exception handlers: never leak stack traces, always return clean JSON --
+
 
 @app.exception_handler(ValidationError)
 async def _validation_error_handler(_request: Request, exc: ValidationError):
@@ -117,6 +126,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception):
 
 
 # --- Health / readiness / metrics ---------------------------------------------
+
 
 @app.get("/health")
 def health() -> dict:

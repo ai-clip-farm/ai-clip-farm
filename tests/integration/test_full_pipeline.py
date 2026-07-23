@@ -19,6 +19,7 @@ Two variants:
   never produces a false failure on a minimal machine, but runs for real in
   CI (see .github/workflows/ci.yml, which installs ffmpeg before pytest).
 """
+
 from __future__ import annotations
 
 import shutil
@@ -42,7 +43,9 @@ except ImportError:
 
 @pytest.mark.integration
 class TestFullPipelineMocked:
-    def test_prepare_render_finalize_happy_path(self, db_session, mocker, sample_transcript, test_settings):
+    def test_prepare_render_finalize_happy_path(
+        self, db_session, mocker, sample_transcript, test_settings
+    ):
         video = Video(
             title="", source_type=SourceType.youtube, source_ref="https://youtu.be/abc123"
         )
@@ -55,16 +58,26 @@ class TestFullPipelineMocked:
                 path=Path("/data/work/x/source.mp4"), title="Great Podcast", duration=10.0
             ),
         )
-        mocker.patch("app.pipeline.orchestrator.transcribe.transcribe", return_value=sample_transcript)
+        mocker.patch(
+            "app.pipeline.orchestrator.transcribe.transcribe", return_value=sample_transcript
+        )
 
         candidates = [
             SimpleNamespace(
-                start_seconds=0.0, end_seconds=2.0, score=95.0, reason="hook",
-                categories=["hook"], transcript_text="Hello world, this is a test.",
+                start_seconds=0.0,
+                end_seconds=2.0,
+                score=95.0,
+                reason="hook",
+                categories=["hook"],
+                transcript_text="Hello world, this is a test.",
             ),
             SimpleNamespace(
-                start_seconds=5.0, end_seconds=6.2, score=80.0, reason="funny",
-                categories=["funny"], transcript_text="Second segment here.",
+                start_seconds=5.0,
+                end_seconds=6.2,
+                score=80.0,
+                reason="funny",
+                categories=["funny"],
+                transcript_text="Second segment here.",
             ),
         ]
         mocker.patch("app.pipeline.orchestrator.analyze.analyze", return_value=candidates)
@@ -79,24 +92,36 @@ class TestFullPipelineMocked:
 
         # --- Stage 2: render each clip (cut -> reframe -> subtitles -> metadata) ---
         mocker.patch("app.pipeline.orchestrator.cut.cut", side_effect=lambda src, dst, s, e: dst)
-        mocker.patch("app.pipeline.orchestrator.reframe.reframe", side_effect=lambda src, dst, w: dst)
-        mocker.patch("app.pipeline.orchestrator.subtitles.build_ass", side_effect=lambda t, s, e, dst: dst)
-        mocker.patch("app.pipeline.orchestrator.subtitles.burn", side_effect=lambda framed, ass, dst: dst.write_bytes(b"fake"))
-        mocker.patch("app.pipeline.orchestrator.make_thumbnail", side_effect=lambda src, dst, at=0.5: dst.write_bytes(b"jpg"))
+        mocker.patch(
+            "app.pipeline.orchestrator.reframe.reframe", side_effect=lambda src, dst, w: dst
+        )
+        mocker.patch(
+            "app.pipeline.orchestrator.subtitles.build_ass", side_effect=lambda t, s, e, dst: dst
+        )
+        mocker.patch(
+            "app.pipeline.orchestrator.subtitles.burn",
+            side_effect=lambda framed, ass, dst: dst.write_bytes(b"fake"),
+        )
+        mocker.patch(
+            "app.pipeline.orchestrator.make_thumbnail",
+            side_effect=lambda src, dst, at=0.5: dst.write_bytes(b"jpg"),
+        )
         mocker.patch(
             "app.pipeline.orchestrator.metadata.generate",
             return_value=SimpleNamespace(
-                title="Hooked in 2 Seconds", hook="Wait for it...",
-                description="A great moment.", hashtags=["viral", "podcast"],
+                title="Hooked in 2 Seconds",
+                hook="Wait for it...",
+                description="A great moment.",
+                hashtags=["viral", "podcast"],
             ),
         )
 
         for clip_id in clip_ids:
             orchestrator.render_clip(db_session, clip_id)
 
-        clips = db_session.query(orchestrator.Clip).filter(
-            orchestrator.Clip.video_id == video.id
-        ).all()
+        clips = (
+            db_session.query(orchestrator.Clip).filter(orchestrator.Clip.video_id == video.id).all()
+        )
         assert len(clips) == 2
         assert all(c.status == ClipStatus.completed for c in clips)
         assert all(Path(c.output_path).exists() for c in clips)
@@ -118,13 +143,21 @@ class TestFullPipelineMocked:
             "app.pipeline.orchestrator.ingest.ingest",
             return_value=SimpleNamespace(path=Path("/x/source.mp4"), title="v", duration=5.0),
         )
-        mocker.patch("app.pipeline.orchestrator.transcribe.transcribe", return_value=sample_transcript)
+        mocker.patch(
+            "app.pipeline.orchestrator.transcribe.transcribe", return_value=sample_transcript
+        )
         mocker.patch(
             "app.pipeline.orchestrator.analyze.analyze",
-            return_value=[SimpleNamespace(
-                start_seconds=0.0, end_seconds=2.0, score=50.0, reason="r",
-                categories=["viral"], transcript_text="hi",
-            )],
+            return_value=[
+                SimpleNamespace(
+                    start_seconds=0.0,
+                    end_seconds=2.0,
+                    score=50.0,
+                    reason="r",
+                    categories=["viral"],
+                    transcript_text="hi",
+                )
+            ],
         )
         clip_ids = orchestrator.prepare_video(db_session, video.id)
 
@@ -158,10 +191,22 @@ class TestFullPipelineReal:
         out = tmp_path / "synthetic.mp4"
         subprocess.run(
             [
-                "ffmpeg", "-y", "-loglevel", "error",
-                "-f", "lavfi", "-i", "testsrc=duration=4:size=480x270:rate=10",
-                "-f", "lavfi", "-i", "sine=frequency=440:duration=4",
-                "-shortest", "-pix_fmt", "yuv420p", str(out),
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=4:size=480x270:rate=10",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=4",
+                "-shortest",
+                "-pix_fmt",
+                "yuv420p",
+                str(out),
             ],
             check=True,
             timeout=60,
@@ -172,31 +217,44 @@ class TestFullPipelineReal:
         self, synthetic_video, tmp_path, test_settings, db_session, mocker
     ):
         test_settings.tracking_backend = "center"  # no MediaPipe model needed
-        test_settings.ffmpeg_hwaccel = "none"       # deterministic on CI runners without a GPU
+        test_settings.ffmpeg_hwaccel = "none"  # deterministic on CI runners without a GPU
 
         video = Video(
-            title="Synthetic", source_type=SourceType.upload, source_ref="synthetic.mp4",
-            source_path=str(synthetic_video), duration_seconds=4.0,
+            title="Synthetic",
+            source_type=SourceType.upload,
+            source_ref="synthetic.mp4",
+            source_path=str(synthetic_video),
+            duration_seconds=4.0,
         )
         transcript = {
-            "language": "en", "duration": 4.0,
-            "segments": [{
-                "start": 0.0, "end": 3.0, "text": "Hello synthetic world.",
-                "words": [
-                    {"start": 0.0, "end": 1.0, "word": "Hello"},
-                    {"start": 1.0, "end": 2.0, "word": "synthetic"},
-                    {"start": 2.0, "end": 3.0, "word": "world."},
-                ],
-            }],
+            "language": "en",
+            "duration": 4.0,
+            "segments": [
+                {
+                    "start": 0.0,
+                    "end": 3.0,
+                    "text": "Hello synthetic world.",
+                    "words": [
+                        {"start": 0.0, "end": 1.0, "word": "Hello"},
+                        {"start": 1.0, "end": 2.0, "word": "synthetic"},
+                        {"start": 2.0, "end": 3.0, "word": "world."},
+                    ],
+                }
+            ],
         }
         video.transcript = transcript
         db_session.add(video)
         db_session.commit()
 
         from app.models import Clip
+
         clip = Clip(
-            video_id=video.id, rank=1, start_seconds=0.0, end_seconds=3.0,
-            transcript_text="Hello synthetic world.", status=ClipStatus.selected,
+            video_id=video.id,
+            rank=1,
+            start_seconds=0.0,
+            end_seconds=3.0,
+            transcript_text="Hello synthetic world.",
+            status=ClipStatus.selected,
         )
         db_session.add(clip)
         db_session.commit()
@@ -204,8 +262,10 @@ class TestFullPipelineReal:
         mocker.patch(
             "app.pipeline.orchestrator.metadata.generate",
             return_value=SimpleNamespace(
-                title="Real Render Test", hook="Real ffmpeg!",
-                description="Produced by real ffmpeg + OpenCV.", hashtags=["test"],
+                title="Real Render Test",
+                hook="Real ffmpeg!",
+                description="Produced by real ffmpeg + OpenCV.",
+                hashtags=["test"],
             ),
         )
 
@@ -218,6 +278,7 @@ class TestFullPipelineReal:
         # Confirm the output is genuinely a valid, playable 9:16 video —
         # not just a file that happens to exist.
         from app.pipeline.ffmpeg_utils import get_video_dimensions
+
         w, h = get_video_dimensions(out)
         assert (w, h) == (test_settings.target_width, test_settings.target_height)
 

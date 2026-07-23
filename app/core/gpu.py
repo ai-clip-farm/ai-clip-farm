@@ -8,6 +8,7 @@ migration from a GPU box to a CPU-only box).
 Detection is cheap (subprocess + optional torch/ctranslate2 probe) and cached
 for the process lifetime — call `gpu_available()` freely.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -23,9 +24,7 @@ def nvidia_smi_available() -> bool:
     if shutil.which("nvidia-smi") is None:
         return False
     try:
-        proc = subprocess.run(
-            ["nvidia-smi", "-L"], capture_output=True, text=True, timeout=5
-        )
+        proc = subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True, timeout=5)
         return proc.returncode == 0 and "GPU" in proc.stdout
     except (subprocess.TimeoutExpired, OSError):
         return False
@@ -42,7 +41,7 @@ def ctranslate2_cuda_available() -> bool:
         import ctranslate2
 
         return ctranslate2.get_cuda_device_count() > 0
-    except Exception:  # noqa: BLE001 - any import/probe failure means "no"
+    except Exception:
         return False
 
 

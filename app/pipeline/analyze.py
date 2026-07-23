@@ -1,10 +1,11 @@
 """Stage 3 — Analyze transcript with Claude and select the best moments.
 
-Claude is given the timestamped transcript and asked to return 10–15 ranked
+Claude is given the timestamped transcript and asked to return 10-15 ranked
 clip candidates optimised for short-form virality. We then *snap* each returned
 timestamp to the nearest word boundary so cuts never slice mid-word, and clamp
 durations to the configured min/max.
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -24,9 +25,7 @@ class ClipCandidate(BaseModel):
     score: float = Field(description="Viral potential 0-100")
     title_hint: str = Field(description="Short label for the moment")
     reason: str = Field(description="Why this moment is engaging")
-    categories: list[str] = Field(
-        description="Any of: hook, emotional, informative, funny, viral"
-    )
+    categories: list[str] = Field(description="Any of: hook, emotional, informative, funny, viral")
     transcript_text: str = Field(description="The spoken words in this clip")
 
 
@@ -99,16 +98,11 @@ def _snap_to_word(t: float, words: list[dict], edge: str) -> float:
     """Snap a timestamp to the nearest word boundary so cuts land on silence."""
     if not words:
         return t
-    if edge == "start":
-        cands = [w["start"] for w in words]
-    else:
-        cands = [w["end"] for w in words]
+    cands = [w["start"] for w in words] if edge == "start" else [w["end"] for w in words]
     return min(cands, key=lambda x: abs(x - t))
 
 
-def _post_process(
-    candidates: list[ClipCandidate], transcript: dict
-) -> list[ClipCandidate]:
+def _post_process(candidates: list[ClipCandidate], transcript: dict) -> list[ClipCandidate]:
     words = _all_words(transcript)
     duration = transcript["duration"]
     out: list[ClipCandidate] = []

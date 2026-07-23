@@ -11,13 +11,15 @@ effort in one place), call `messages.create()`, and validate the returned
 JSON text against the Pydantic schema — the fully-documented, unambiguous
 path, at the cost of one extra `model_validate_json` call.
 """
+
 from __future__ import annotations
 
 import json
 from typing import TypeVar
 
 import anthropic
-from pydantic import BaseModel, ValidationError as PydanticValidationError
+from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
 from tenacity import (
     before_sleep_log,
     retry,
@@ -50,9 +52,7 @@ def client() -> anthropic.Anthropic:
     global _client
     if _client is None:
         if not settings.anthropic_api_key:
-            raise AnalysisError(
-                "ANTHROPIC_API_KEY is not set — cannot call the Claude API"
-            )
+            raise AnalysisError("ANTHROPIC_API_KEY is not set — cannot call the Claude API")
         _client = anthropic.Anthropic(
             api_key=settings.anthropic_api_key,
             timeout=settings.claude_timeout_seconds,
@@ -69,7 +69,11 @@ def client() -> anthropic.Anthropic:
     reraise=True,
 )
 def _create(*, system: str, user: str, output_config: dict, max_tokens: int):
-    return client().messages.create(
+    # Plain dicts here (not the SDK's OutputConfigParam/ThinkingConfigAdaptiveParam
+    # TypedDicts) match the documented API request shape exactly and work
+    # correctly at runtime; mypy can't verify a plain dict against the
+    # overloaded signature's specific TypedDict params, hence the ignore.
+    return client().messages.create(  # type: ignore[call-overload]
         model=settings.claude_model,
         max_tokens=max_tokens,
         thinking={"type": "adaptive"},
@@ -98,9 +102,7 @@ def parse(
 
     logger.debug("Claude request ({} chars user, purpose={})", len(user), purpose)
     try:
-        resp = _create(
-            system=system, user=user, output_config=output_config, max_tokens=max_tokens
-        )
+        resp = _create(system=system, user=user, output_config=output_config, max_tokens=max_tokens)
     except _RETRYABLE as e:
         CLAUDE_REQUESTS.labels(purpose=purpose, outcome="error").inc()
         raise AnalysisError(f"Claude request failed after retries: {e}") from e
@@ -118,9 +120,7 @@ def parse(
     text = next((b.text for b in resp.content if b.type == "text"), None)
     if not text:
         CLAUDE_REQUESTS.labels(purpose=purpose, outcome="empty").inc()
-        raise AnalysisError(
-            f"Claude returned no text content (stop_reason={resp.stop_reason})"
-        )
+        raise AnalysisError(f"Claude returned no text content (stop_reason={resp.stop_reason})")
 
     try:
         data = json.loads(text)

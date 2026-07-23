@@ -15,6 +15,15 @@ venv/
 # Models cache
 .cache/
 
+# Test / lint artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+fulltestlog.txt
+
 # OS
 .DS_Store
 Thumbs.db

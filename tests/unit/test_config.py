@@ -5,6 +5,7 @@ These tests construct `Settings(...)` directly (bypassing the cached
 `get_settings()` singleton) so they can exercise different configurations
 without disturbing the process-wide settings other tests rely on.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -71,9 +72,7 @@ class TestLiteralValidation:
             Settings(tracking_backend="yolo")
 
     def test_accepts_valid_values(self):
-        s = Settings(
-            claude_effort="xhigh", whisper_device="cpu", tracking_backend="opencv"
-        )
+        s = Settings(claude_effort="xhigh", whisper_device="cpu", tracking_backend="opencv")
         assert s.claude_effort == "xhigh"
 
 

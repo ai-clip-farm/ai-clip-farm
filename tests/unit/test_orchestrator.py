@@ -4,6 +4,7 @@ subtitles -> metadata. Every external stage call is mocked; what's under
 test is exclusively orchestrator.py's own logic: job bookkeeping, status
 transitions, cleanup timing, and duplicate-run protection.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,7 +19,7 @@ from app.pipeline import orchestrator
 
 
 def _make_video(db_session, **overrides) -> Video:
-    defaults = dict(source_type=SourceType.youtube, source_ref="https://youtu.be/x")
+    defaults = {"source_type": SourceType.youtube, "source_ref": "https://youtu.be/x"}
     defaults.update(overrides)
     video = Video(**defaults)
     db_session.add(video)
@@ -27,14 +28,14 @@ def _make_video(db_session, **overrides) -> Video:
 
 
 def _make_clip(db_session, video: Video, **overrides) -> Clip:
-    defaults = dict(
-        video_id=video.id,
-        rank=1,
-        start_seconds=0.0,
-        end_seconds=10.0,
-        transcript_text="hello",
-        status=ClipStatus.selected,
-    )
+    defaults = {
+        "video_id": video.id,
+        "rank": 1,
+        "start_seconds": 0.0,
+        "end_seconds": 10.0,
+        "transcript_text": "hello",
+        "status": ClipStatus.selected,
+    }
     defaults.update(overrides)
     clip = Clip(**defaults)
     db_session.add(clip)
@@ -49,12 +50,20 @@ class TestPrepareVideo:
 
         mocker.patch(
             "app.pipeline.orchestrator.ingest.ingest",
-            return_value=SimpleNamespace(path=Path("/data/work/x/source.mp4"), title="My Video", duration=10.0),
+            return_value=SimpleNamespace(
+                path=Path("/data/work/x/source.mp4"), title="My Video", duration=10.0
+            ),
         )
-        mocker.patch("app.pipeline.orchestrator.transcribe.transcribe", return_value=sample_transcript)
+        mocker.patch(
+            "app.pipeline.orchestrator.transcribe.transcribe", return_value=sample_transcript
+        )
         candidate = SimpleNamespace(
-            start_seconds=0.0, end_seconds=2.0, score=90.0, reason="funny",
-            categories=["funny"], transcript_text="hello",
+            start_seconds=0.0,
+            end_seconds=2.0,
+            score=90.0,
+            reason="funny",
+            categories=["funny"],
+            transcript_text="hello",
         )
         mocker.patch("app.pipeline.orchestrator.analyze.analyze", return_value=[candidate])
 
@@ -104,8 +113,12 @@ class TestPrepareVideo:
 class TestRenderClip:
     def _mock_stages(self, mocker, work_dir: Path):
         mocker.patch("app.pipeline.orchestrator.cut.cut", return_value=work_dir / "cut.mp4")
-        mocker.patch("app.pipeline.orchestrator.reframe.reframe", return_value=work_dir / "framed.mp4")
-        mocker.patch("app.pipeline.orchestrator.subtitles.build_ass", return_value=work_dir / "subs.ass")
+        mocker.patch(
+            "app.pipeline.orchestrator.reframe.reframe", return_value=work_dir / "framed.mp4"
+        )
+        mocker.patch(
+            "app.pipeline.orchestrator.subtitles.build_ass", return_value=work_dir / "subs.ass"
+        )
         mocker.patch("app.pipeline.orchestrator.subtitles.burn")
         mocker.patch("app.pipeline.orchestrator.make_thumbnail")
         meta = SimpleNamespace(
@@ -114,7 +127,9 @@ class TestRenderClip:
         mocker.patch("app.pipeline.orchestrator.metadata.generate", return_value=meta)
         return meta
 
-    def test_happy_path_packages_output_and_cleans_workspace(self, db_session, mocker, sample_transcript, test_settings, tmp_path):
+    def test_happy_path_packages_output_and_cleans_workspace(
+        self, db_session, mocker, sample_transcript, test_settings, tmp_path
+    ):
         video = _make_video(db_session, title="Demo", transcript=sample_transcript)
         video.source_path = "/data/work/x/source.mp4"
         db_session.commit()
@@ -134,7 +149,9 @@ class TestRenderClip:
         assert Path(result_path).name == "clip.mp4"
         assert not work.exists()  # per-clip workspace reclaimed on success
 
-    def test_render_failure_marks_clip_failed_and_records_error(self, db_session, mocker, sample_transcript):
+    def test_render_failure_marks_clip_failed_and_records_error(
+        self, db_session, mocker, sample_transcript
+    ):
         video = _make_video(db_session, title="Demo", transcript=sample_transcript)
         video.source_path = "/data/work/x/source.mp4"
         db_session.commit()
@@ -151,7 +168,9 @@ class TestRenderClip:
         assert clip.status == ClipStatus.failed
         assert "ffmpeg exploded" in clip.error
 
-    def test_keeps_clip_workspace_on_failure_when_configured(self, db_session, mocker, sample_transcript, test_settings):
+    def test_keeps_clip_workspace_on_failure_when_configured(
+        self, db_session, mocker, sample_transcript, test_settings
+    ):
         test_settings.keep_work_dir_on_failure = True
         video = _make_video(db_session, title="Demo", transcript=sample_transcript)
         video.source_path = "/data/work/x/source.mp4"

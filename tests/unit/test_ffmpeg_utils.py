@@ -2,6 +2,7 @@
 wrapping, and the hardware-encoder-with-libx264-fallback logic. All
 `subprocess.run` calls are mocked; no real ffmpeg binary is needed.
 """
+
 from __future__ import annotations
 
 import subprocess

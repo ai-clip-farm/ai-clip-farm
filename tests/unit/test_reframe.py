@@ -7,6 +7,7 @@ Requires `opencv-python-headless`/`numpy` importable (both top-level imports
 in reframe.py) — same constraint as the rest of this suite; installed via
 requirements.txt in CI.
 """
+
 from __future__ import annotations
 
 import pytest

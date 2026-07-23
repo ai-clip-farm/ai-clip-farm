@@ -6,6 +6,7 @@ report generation — run maintenance workers with
 `-Q maintenance --concurrency=1` if you want strict isolation, or leave both
 queues on the default worker for smaller deployments.
 """
+
 from __future__ import annotations
 
 from celery import Celery
@@ -25,15 +26,15 @@ celery_app.conf.update(
     result_serializer="json",
     accept_content=["json"],
     task_track_started=True,
-    task_acks_late=True,                 # re-queue on worker crash
+    task_acks_late=True,  # re-queue on worker crash
     task_reject_on_worker_lost=True,
-    worker_prefetch_multiplier=1,        # heavy tasks: one at a time per slot
-    worker_max_tasks_per_child=20,       # recycle to release ffmpeg/whisper mem
-    worker_send_task_events=True,        # required for Flower + task-level metrics
+    worker_prefetch_multiplier=1,  # heavy tasks: one at a time per slot
+    worker_max_tasks_per_child=20,  # recycle to release ffmpeg/whisper mem
+    worker_send_task_events=True,  # required for Flower + task-level metrics
     task_send_sent_event=True,
     result_expires=60 * 60 * 24,
     task_soft_time_limit=settings.celery_task_soft_time_limit,  # SIGTERM: allow cleanup
-    task_time_limit=settings.celery_task_time_limit,            # SIGKILL: hard ceiling
+    task_time_limit=settings.celery_task_time_limit,  # SIGKILL: hard ceiling
     task_default_queue="pipeline",
     task_routes={
         "clipfarm.process_video": {"queue": "pipeline"},

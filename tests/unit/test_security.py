@@ -3,6 +3,7 @@ that closes the "anyone on the network can submit jobs" hole. asyncio_mode
 is "auto" (see pyproject.toml) so plain `async def test_...` works without
 an explicit @pytest.mark.asyncio decorator.
 """
+
 from __future__ import annotations
 
 import pytest

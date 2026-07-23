@@ -1,4 +1,5 @@
 """Pydantic request/response models for the HTTP API (distinct from DB models)."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -10,7 +11,7 @@ from app.models import ClipStatus, JobStatus, SourceType
 
 class CreateVideoRequest(BaseModel):
     source_type: SourceType
-    source_ref: str          # YouTube URL or filename in INPUT_DIR
+    source_ref: str  # YouTube URL or filename in INPUT_DIR
     title: str | None = None
 
 

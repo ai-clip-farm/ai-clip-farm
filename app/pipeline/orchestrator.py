@@ -12,10 +12,11 @@ Every stage is timed (Prometheus histogram) and wrapped so a stage-specific
 exception (from `app.core.exceptions`) is what callers see — Celery uses
 `.retryable` on these to decide whether to retry or give up immediately.
 """
+
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from slugify import slugify
@@ -31,7 +32,18 @@ from app.pipeline import analyze, cut, ingest, metadata, reframe, subtitles, tra
 from app.pipeline.ffmpeg_utils import make_thumbnail
 
 
+def _utcnow() -> datetime:
+    """Naive-but-correct UTC timestamp for the `render_started_at`/
+    `render_finished_at` columns, which are plain `DateTime` (not
+    timezone-aware) — see app/models/schema.py. `_utcnow()` is
+    deprecated (Python 3.12+); this is the replacement that still produces a
+    naive datetime, matching the existing naive column type instead of
+    introducing an aware/naive mismatch against it."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 # --- Job bookkeeping helpers --------------------------------------------------
+
 
 def _job(db: Session, video_id: str, stage: str) -> Job:
     job = Job(video_id=video_id, stage=stage, status=JobStatus.running)
@@ -68,6 +80,7 @@ def _fail_open_job(job: Job | None, err: str) -> None:
 
 # --- Stage 1-3: prepare -------------------------------------------------------
 
+
 def prepare_video(db: Session, video_id: str) -> list[str]:
     """Ingest, transcribe and analyze. Returns the created clip IDs."""
     video = db.get(Video, video_id)
@@ -99,11 +112,16 @@ def prepare_video(db: Session, video_id: str) -> list[str]:
 
         # 2. Transcribe
         job = _job(db, video_id, "transcribe")
+        # Rebind to a name whose static type is `Job` (not `Job | None`) for
+        # the closure below — `job`'s declared type spans the whole
+        # function (it starts as None), so mypy can't narrow it across a
+        # lambda boundary even though it's provably non-None here at runtime.
+        transcribe_job: Job = job
         with StageTimer("transcribe"):
             transcript = transcribe.transcribe(
                 result.path,
                 settings.work_dir / video_id,
-                on_progress=lambda p, m: _progress(db, job, p, m),
+                on_progress=lambda p, m: _progress(db, transcribe_job, p, m),
             )
         video.transcript = transcript
         db.commit()
@@ -142,7 +160,7 @@ def prepare_video(db: Session, video_id: str) -> list[str]:
         _fail_open_job(job, str(e))
         db.commit()
         raise
-    except Exception as e:  # noqa: BLE001 - unexpected bug, still record it
+    except Exception as e:
         logger.exception("prepare_video({}) failed unexpectedly", video_id)
         video.status = JobStatus.failed
         video.error = f"Unexpected error: {e}"[:4000]
@@ -155,6 +173,7 @@ def prepare_video(db: Session, video_id: str) -> list[str]:
 
 # --- Stage 4-7: render one clip ----------------------------------------------
 
+
 def render_clip(db: Session, clip_id: str) -> str:
     """Cut, reframe, subtitle and package one clip. Returns the output path."""
     clip = db.get(Clip, clip_id)
@@ -163,9 +182,17 @@ def render_clip(db: Session, clip_id: str) -> str:
     video = db.get(Video, clip.video_id)
     if video is None or not video.source_path:
         raise ValueError(f"Video {clip.video_id} has no ingested source")
+    if video.transcript is None:
+        # Should be unreachable in the normal prepare -> render flow (a Clip
+        # only ever gets created after `prepare_video` has already set
+        # video.transcript), but the column is nullable and this is called
+        # from a separate Celery task — a real, if unlikely, ordering bug
+        # deserves a clear error here rather than an obscure crash inside
+        # build_ass(). Also narrows the type for mypy (Mapped[dict | None]).
+        raise ValueError(f"Video {clip.video_id} has no transcript yet")
 
     clip.status = ClipStatus.rendering
-    clip.render_started_at = datetime.utcnow()
+    clip.render_started_at = _utcnow()
     clip.error = None
     db.commit()
 
@@ -175,9 +202,7 @@ def render_clip(db: Session, clip_id: str) -> str:
     try:
         # 4. Cut segment
         with StageTimer("cut"):
-            raw = cut.cut(
-                video.source_path, work / "cut.mp4", clip.start_seconds, clip.end_seconds
-            )
+            raw = cut.cut(video.source_path, work / "cut.mp4", clip.start_seconds, clip.end_seconds)
         # 5. Reframe to 9:16 with speaker tracking
         with StageTimer("reframe"):
             framed = reframe.reframe(raw, work / "framed.mp4", work)
@@ -216,7 +241,7 @@ def render_clip(db: Session, clip_id: str) -> str:
         clip.output_path = str(final)
         clip.thumbnail_path = str(thumb)
         clip.status = ClipStatus.completed
-        clip.render_finished_at = datetime.utcnow()
+        clip.render_finished_at = _utcnow()
         db.commit()
 
         # Per-clip intermediates (cut.mp4/framed.mp4/subs.ass) are no longer
@@ -233,16 +258,16 @@ def render_clip(db: Session, clip_id: str) -> str:
         logger.error("render_clip({}) failed: {}", clip_id, e)
         clip.status = ClipStatus.failed
         clip.error = str(e)[:4000]
-        clip.render_finished_at = datetime.utcnow()
+        clip.render_finished_at = _utcnow()
         db.commit()
         cleanup_clip_workspace_on_failure(clip.video_id, clip.id)
         CLIPS_RENDERED.labels(outcome="failure").inc()
         raise
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("render_clip({}) failed unexpectedly", clip_id)
         clip.status = ClipStatus.failed
         clip.error = f"Unexpected error: {e}"[:4000]
-        clip.render_finished_at = datetime.utcnow()
+        clip.render_finished_at = _utcnow()
         db.commit()
         cleanup_clip_workspace_on_failure(clip.video_id, clip.id)
         CLIPS_RENDERED.labels(outcome="failure").inc()
@@ -270,6 +295,7 @@ def finalize_video(db: Session, video_id: str) -> None:
 
 
 # --- helpers ------------------------------------------------------------------
+
 
 def _safe(name: str) -> str:
     return slugify(name, max_length=64) or "untitled"

@@ -12,6 +12,7 @@ Both use the default `prometheus_client` global registry — safe here because
 API and worker are always separate OS processes (never imported into the same
 process), so there's no risk of double-registration.
 """
+
 from __future__ import annotations
 
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
@@ -91,7 +92,7 @@ class StageTimer:
         self.stage = stage
         self._start: float | None = None
 
-    def __enter__(self) -> "StageTimer":
+    def __enter__(self) -> StageTimer:
         import time
 
         self._start = time.monotonic()
@@ -102,6 +103,4 @@ class StageTimer:
 
         elapsed = time.monotonic() - (self._start or 0)
         STAGE_DURATION.labels(stage=self.stage).observe(elapsed)
-        STAGE_RESULT.labels(
-            stage=self.stage, outcome="failure" if exc_type else "success"
-        ).inc()
+        STAGE_RESULT.labels(stage=self.stage, outcome="failure" if exc_type else "success").inc()

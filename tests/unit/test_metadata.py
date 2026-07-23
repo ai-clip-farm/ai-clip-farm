@@ -1,5 +1,6 @@
 """Unit tests for app.pipeline.metadata — hashtag normalization and the
 Claude call shape. `claude_client.parse` is mocked."""
+
 from __future__ import annotations
 
 import pytest

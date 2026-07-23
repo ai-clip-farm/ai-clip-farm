@@ -5,6 +5,7 @@ bug) derives from `ClipFarmError`. This lets callers (Celery tasks, the API)
 distinguish "this input/environment is bad, don't blindly retry" from
 transient errors that *should* retry, without string-matching messages.
 """
+
 from __future__ import annotations
 
 
@@ -16,6 +17,7 @@ class ClipFarmError(Exception):
 
 
 # --- Validation / input errors (never retryable — the input itself is bad) --
+
 
 class ValidationError(ClipFarmError):
     """Bad user input (URL, filename, size, unsupported format, ...)."""
@@ -39,8 +41,9 @@ class CorruptedMediaError(ValidationError):
 
 # --- Pipeline stage errors ----------------------------------------------------
 
+
 class IngestError(ClipFarmError):
-    retryable = True   # network hiccups during download are common
+    retryable = True  # network hiccups during download are common
 
 
 class TranscriptionError(ClipFarmError):
@@ -64,6 +67,7 @@ class RenderError(ClipFarmError):
 
 
 # --- Infra errors --------------------------------------------------------------
+
 
 class FFmpegExecutionError(ClipFarmError):
     retryable = True

@@ -4,6 +4,7 @@ corrupting override tags), and the empty-clip guard. No ffmpeg process is
 invoked here; `burn()` (which shells out) is covered by test_ffmpeg_utils.py
 instead.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -78,7 +79,9 @@ def test_group_lines_chunks_by_words_per_line():
 
 @pytest.mark.unit
 class TestBuildAss:
-    def test_builds_file_with_expected_header_fields(self, sample_transcript, tmp_path, test_settings):
+    def test_builds_file_with_expected_header_fields(
+        self, sample_transcript, tmp_path, test_settings
+    ):
         dst = tmp_path / "subs.ass"
         build_ass(sample_transcript, 0.0, 2.0, dst)
         content = dst.read_text(encoding="utf-8")
@@ -101,7 +104,9 @@ class TestBuildAss:
         transcript = {
             "segments": [
                 {
-                    "start": 0.0, "end": 1.0, "text": "{evil} tag",
+                    "start": 0.0,
+                    "end": 1.0,
+                    "text": "{evil} tag",
                     "words": [
                         {"start": 0.0, "end": 0.5, "word": "{evil}"},
                         {"start": 0.5, "end": 1.0, "word": "tag"},
@@ -117,7 +122,9 @@ class TestBuildAss:
         assert "\\{evil\\}" in content
 
     @pytest.mark.parametrize("style_name", list(STYLE_PRESETS.keys()))
-    def test_every_style_preset_produces_valid_output(self, style_name, sample_transcript, tmp_path, test_settings):
+    def test_every_style_preset_produces_valid_output(
+        self, style_name, sample_transcript, tmp_path, test_settings
+    ):
         test_settings.subtitle_style = style_name
         dst = tmp_path / f"{style_name}.ass"
         build_ass(sample_transcript, 0.0, 2.0, dst)

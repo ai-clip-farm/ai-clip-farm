@@ -2,6 +2,7 @@
 guards. These are the highest-value tests in the suite: every one of them
 maps directly to a security bug found and fixed during the production audit.
 """
+
 from __future__ import annotations
 
 import pytest

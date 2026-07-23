@@ -10,6 +10,7 @@ A `Video` is an ingested long-form source. Each `Clip` is one selected moment
 that gets cut, reframed, subtitled and packaged with generated metadata. `Job`
 rows record every async stage so the UI can show live progress and failures.
 """
+
 from __future__ import annotations
 
 import enum
@@ -51,7 +52,7 @@ class JobStatus(str, enum.Enum):
 
 
 class ClipStatus(str, enum.Enum):
-    selected = "selected"      # chosen by Claude, not yet rendered
+    selected = "selected"  # chosen by Claude, not yet rendered
     rendering = "rendering"
     completed = "completed"
     failed = "failed"
@@ -63,12 +64,10 @@ class Video(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     title: Mapped[str] = mapped_column(String(512), default="")
     source_type: Mapped[SourceType] = mapped_column(Enum(SourceType))
-    source_ref: Mapped[str] = mapped_column(Text)          # URL or original filename
+    source_ref: Mapped[str] = mapped_column(Text)  # URL or original filename
     source_path: Mapped[str | None] = mapped_column(Text, nullable=True)  # local mp4
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
-    status: Mapped[JobStatus] = mapped_column(
-        Enum(JobStatus), default=JobStatus.pending
-    )
+    status: Mapped[JobStatus] = mapped_column(Enum(JobStatus), default=JobStatus.pending)
     # Full Whisper transcript with word-level timestamps (segments + words).
     transcript: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -78,12 +77,8 @@ class Video(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
 
-    clips: Mapped[list["Clip"]] = relationship(
-        back_populates="video", cascade="all, delete-orphan"
-    )
-    jobs: Mapped[list["Job"]] = relationship(
-        back_populates="video", cascade="all, delete-orphan"
-    )
+    clips: Mapped[list[Clip]] = relationship(back_populates="video", cascade="all, delete-orphan")
+    jobs: Mapped[list[Job]] = relationship(back_populates="video", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_videos_status", "status"),
@@ -96,13 +91,13 @@ class Clip(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     video_id: Mapped[str] = mapped_column(ForeignKey("videos.id"), index=True)
-    rank: Mapped[int] = mapped_column(Integer, default=0)   # 1 = strongest moment
+    rank: Mapped[int] = mapped_column(Integer, default=0)  # 1 = strongest moment
 
     start_seconds: Mapped[float] = mapped_column(Float)
     end_seconds: Mapped[float] = mapped_column(Float)
 
     # --- Claude scoring (why this moment was chosen) ---
-    score: Mapped[float] = mapped_column(Float, default=0.0)   # 0-100 viral potential
+    score: Mapped[float] = mapped_column(Float, default=0.0)  # 0-100 viral potential
     reason: Mapped[str] = mapped_column(Text, default="")
     categories: Mapped[list | None] = mapped_column(JSON, nullable=True)  # hook/funny/…
     transcript_text: Mapped[str] = mapped_column(Text, default="")
@@ -114,9 +109,7 @@ class Clip(Base):
     gen_hashtags: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     # --- Output artefacts ---
-    status: Mapped[ClipStatus] = mapped_column(
-        Enum(ClipStatus), default=ClipStatus.selected
-    )
+    status: Mapped[ClipStatus] = mapped_column(Enum(ClipStatus), default=ClipStatus.selected)
     output_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumbnail_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -131,7 +124,7 @@ class Clip(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
 
-    video: Mapped["Video"] = relationship(back_populates="clips")
+    video: Mapped[Video] = relationship(back_populates="clips")
 
     __table_args__ = (
         Index("ix_clips_status", "status"),
@@ -145,9 +138,7 @@ class Clip(Base):
     @property
     def render_duration_seconds(self) -> float | None:
         if self.render_started_at and self.render_finished_at:
-            return round(
-                (self.render_finished_at - self.render_started_at).total_seconds(), 2
-            )
+            return round((self.render_finished_at - self.render_started_at).total_seconds(), 2)
         return None
 
 
@@ -158,11 +149,9 @@ class Job(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     video_id: Mapped[str] = mapped_column(ForeignKey("videos.id"), index=True)
-    stage: Mapped[str] = mapped_column(String(64))   # ingest/transcribe/analyze/render
-    status: Mapped[JobStatus] = mapped_column(
-        Enum(JobStatus), default=JobStatus.pending
-    )
-    progress: Mapped[float] = mapped_column(Float, default=0.0)   # 0.0 - 1.0
+    stage: Mapped[str] = mapped_column(String(64))  # ingest/transcribe/analyze/render
+    status: Mapped[JobStatus] = mapped_column(Enum(JobStatus), default=JobStatus.pending)
+    progress: Mapped[float] = mapped_column(Float, default=0.0)  # 0.0 - 1.0
     message: Mapped[str] = mapped_column(Text, default="")
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -172,7 +161,7 @@ class Job(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
 
-    video: Mapped["Video"] = relationship(back_populates="jobs")
+    video: Mapped[Video] = relationship(back_populates="jobs")
 
     __table_args__ = (
         Index("ix_jobs_status", "status"),

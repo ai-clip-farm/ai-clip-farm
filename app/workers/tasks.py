@@ -1,7 +1,7 @@
 """Celery tasks — the async backbone.
 
 Flow:
-    process_video          (prepare)  ── chord ──►  render_clip × N  ──►  finalize_video
+    process_video          (prepare)  ── chord ──►  render_clip x N  ──►  finalize_video
 
 `chord` fans clip rendering out across the worker pool and runs `finalize_video`
 only after every clip finishes, so the video is marked complete exactly once.
@@ -12,6 +12,7 @@ mismatch will never succeed on retry, so those fail immediately instead of
 burning 2-3 retry cycles (each potentially re-running a 20-minute
 transcription) before giving up anyway.
 """
+
 from __future__ import annotations
 
 from celery import chord
@@ -33,7 +34,7 @@ def _notify_slack(text: str) -> None:
         import httpx
 
         httpx.post(settings.slack_webhook_url, json={"text": text}, timeout=10)
-    except Exception as e:  # noqa: BLE001 - alerting must never break the task
+    except Exception as e:
         logger.warning("Slack notification failed: {}", e)
 
 
@@ -50,9 +51,12 @@ def process_video(self, video_id: str) -> dict:
         if e.retryable and self.request.retries < self.max_retries:
             logger.warning(
                 "process_video({}) transient failure, retry {}/{}: {}",
-                video_id, self.request.retries + 1, self.max_retries, e,
+                video_id,
+                self.request.retries + 1,
+                self.max_retries,
+                e,
             )
-            raise self.retry(exc=e)
+            raise self.retry(exc=e) from e
         _notify_slack(f":x: Video `{video_id}` permanently failed at prepare stage: {e}")
         return {"video_id": video_id, "status": "failed", "error": str(e)}
 
@@ -78,7 +82,11 @@ def render_clip(self, clip_id: str) -> dict:
     except ClipFarmError as e:
         logger.warning(
             "render_clip({}) failed (attempt {}/{}, retryable={}): {}",
-            clip_id, self.request.retries, self.max_retries, e.retryable, e,
+            clip_id,
+            self.request.retries,
+            self.max_retries,
+            e.retryable,
+            e,
         )
         if e.retryable and self.request.retries < self.max_retries:
             with session_scope() as db:
@@ -86,9 +94,9 @@ def render_clip(self, clip_id: str) -> dict:
                 if clip is not None:
                     clip.retry_count = (clip.retry_count or 0) + 1
                     db.commit()
-            raise self.retry(exc=e)
+            raise self.retry(exc=e) from e
         return {"clip_id": clip_id, "status": "failed", "error": str(e)}
-    except Exception as exc:  # noqa: BLE001 - unexpected bug; don't retry blindly
+    except Exception as exc:
         logger.exception("render_clip({}) failed unexpectedly", clip_id)
         return {"clip_id": clip_id, "status": "failed", "error": str(exc)}
 
@@ -100,14 +108,13 @@ def finalize_video(_results, video_id: str) -> dict:
         video = db.get(Video, video_id)
         failed = sum(1 for c in video.clips if c.status == ClipStatus.failed) if video else 0
     if failed:
-        _notify_slack(
-            f":warning: Video `{video_id}` finished with {failed} failed clip(s)."
-        )
+        _notify_slack(f":warning: Video `{video_id}` finished with {failed} failed clip(s).")
     logger.info("Video {} finalized ({} failed clips)", video_id, failed)
     return {"video_id": video_id, "status": "completed", "failed_clips": failed}
 
 
 # --- Maintenance (Celery Beat) -------------------------------------------------
+
 
 @celery_app.task(name="clipfarm.purge_stale_work_dirs")
 def purge_stale_work_dirs() -> dict:
@@ -125,7 +132,9 @@ def failed_job_report() -> dict:
 
     from app.models import Clip, Job
 
-    cutoff = dt.datetime.utcnow() - dt.timedelta(hours=24)
+    # Naive UTC (not dt.datetime.now(dt.UTC) directly) to match the naive
+    # DateTime columns (updated_at) it's compared against below.
+    cutoff = dt.datetime.now(dt.UTC).replace(tzinfo=None) - dt.timedelta(hours=24)
     with session_scope() as db:
         failed_videos = db.scalars(
             select(Video).where(Video.status == JobStatus.failed, Video.updated_at >= cutoff)
@@ -137,23 +146,33 @@ def failed_job_report() -> dict:
             select(Job).where(Job.status == JobStatus.failed, Job.updated_at >= cutoff)
         ).all()
 
+        # Built as its own variable (not inlined into `report` below) so its
+        # type is unambiguously dict[str, int] — folded into a heterogeneous
+        # report dict, mypy can no longer prove that at the "counts" key.
+        counts = {
+            "videos": len(failed_videos),
+            "clips": len(failed_clips),
+            "stages": len(failed_jobs),
+        }
         report = {
             "since": cutoff.isoformat(),
-            "failed_videos": [{"id": v.id, "title": v.title, "error": v.error} for v in failed_videos],
-            "failed_clips": [{"id": c.id, "video_id": c.video_id, "error": c.error} for c in failed_clips],
-            "failed_stages": [{"id": j.id, "stage": j.stage, "error": j.error} for j in failed_jobs],
-            "counts": {
-                "videos": len(failed_videos),
-                "clips": len(failed_clips),
-                "stages": len(failed_jobs),
-            },
+            "failed_videos": [
+                {"id": v.id, "title": v.title, "error": v.error} for v in failed_videos
+            ],
+            "failed_clips": [
+                {"id": c.id, "video_id": c.video_id, "error": c.error} for c in failed_clips
+            ],
+            "failed_stages": [
+                {"id": j.id, "stage": j.stage, "error": j.error} for j in failed_jobs
+            ],
+            "counts": counts,
         }
 
-    logger.info("Failed-job report (24h): {}", report["counts"])
-    total = sum(report["counts"].values())
+    logger.info("Failed-job report (24h): {}", counts)
+    total = sum(counts.values())
     if total:
         _notify_slack(
-            f":bar_chart: Daily failure report: {report['counts']['videos']} videos, "
-            f"{report['counts']['clips']} clips, {report['counts']['stages']} stages failed in the last 24h."
+            f":bar_chart: Daily failure report: {counts['videos']} videos, "
+            f"{counts['clips']} clips, {counts['stages']} stages failed in the last 24h."
         )
     return report

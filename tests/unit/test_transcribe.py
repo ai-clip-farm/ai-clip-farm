@@ -3,6 +3,7 @@ reloading a 1.5GB model on every single video), device-resolution
 integration, and error wrapping. `faster_whisper.WhisperModel` is mocked;
 no real model download or audio decoding happens.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -24,7 +25,9 @@ def _fake_segment(start, end, text, words):
     from types import SimpleNamespace
 
     return SimpleNamespace(
-        start=start, end=end, text=text,
+        start=start,
+        end=end,
+        text=text,
         words=[SimpleNamespace(start=w[0], end=w[1], word=w[2]) for w in words],
     )
 
@@ -35,7 +38,13 @@ class TestModelCaching:
         test_settings.whisper_cache_models = True
         mock_model_cls = mocker.patch("faster_whisper.WhisperModel")
         mock_instance = mock_model_cls.return_value
-        mock_instance.transcribe.return_value = (
+        # side_effect (not return_value): a `return_value` tuple wraps a
+        # single iterator that's exhausted after the *first* transcribe()
+        # call fully consumes it — the second call below would silently get
+        # the same empty iterator back and fail with "zero segments". A
+        # side_effect callable re-invokes fresh on every call, producing a
+        # new iterator each time, matching what a real model does.
+        mock_instance.transcribe.side_effect = lambda *a, **kw: (
             iter([_fake_segment(0.0, 1.0, "hi", [(0.0, 1.0, "hi")])]),
             mocker.Mock(language="en"),
         )
@@ -52,7 +61,8 @@ class TestModelCaching:
     def test_reloads_when_caching_disabled(self, test_settings, mocker, tmp_path):
         test_settings.whisper_cache_models = False
         mock_model_cls = mocker.patch("faster_whisper.WhisperModel")
-        mock_model_cls.return_value.transcribe.return_value = (
+        # Same side_effect-not-return_value reasoning as the test above.
+        mock_model_cls.return_value.transcribe.side_effect = lambda *a, **kw: (
             iter([_fake_segment(0.0, 1.0, "hi", [(0.0, 1.0, "hi")])]),
             mocker.Mock(language="en"),
         )

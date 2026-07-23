@@ -7,6 +7,7 @@ itself is covered conceptually by `tests/unit/test_security.py`'s auth tests
 and should be smoke-tested manually (or in a dedicated environment with real
 Redis) before a production deploy — see docs/SECURITY_CHECKLIST.md.
 """
+
 from __future__ import annotations
 
 import pytest

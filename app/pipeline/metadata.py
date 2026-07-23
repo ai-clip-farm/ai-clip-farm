@@ -4,6 +4,7 @@ For each selected clip: a scroll-stopping title, an on-screen hook, a platform
 description, and hashtags. One call per clip keeps each focused and cheap; the
 orchestrator can fan these out in parallel.
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -29,9 +30,8 @@ Match the tone and topic of the clip. Do not invent facts not in the transcript.
 
 def generate(clip_transcript: str, context_title: str = "") -> ClipMetadata:
     user = (
-        (f"Source video: {context_title}\n\n" if context_title else "")
-        + f"CLIP TRANSCRIPT:\n{clip_transcript}"
-    )
+        f"Source video: {context_title}\n\n" if context_title else ""
+    ) + f"CLIP TRANSCRIPT:\n{clip_transcript}"
     meta = claude_client.parse(
         system=SYSTEM, user=user, schema=ClipMetadata, max_tokens=2000, purpose="metadata"
     )

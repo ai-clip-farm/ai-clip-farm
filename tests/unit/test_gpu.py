@@ -5,6 +5,7 @@ a subprocess call, not free) — tests must clear the cache before/after
 patching the underlying probe, or a result cached by an earlier test leaks
 into a later one.
 """
+
 from __future__ import annotations
 
 import pytest

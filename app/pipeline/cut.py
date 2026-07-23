@@ -1,4 +1,5 @@
 """Stage 4 — Cut the selected segment from the source (thin wrapper)."""
+
 from __future__ import annotations
 
 from pathlib import Path

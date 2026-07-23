@@ -15,8 +15,10 @@ Both are defensive: a failure to delete (permission error, file still open on
 Windows-mounted volumes, etc.) is logged and swallowed — cleanup must never
 be the reason a pipeline run fails.
 """
+
 from __future__ import annotations
 
+import contextlib
 import shutil
 import time
 from pathlib import Path
@@ -87,9 +89,7 @@ def purge_stale_work_dirs() -> dict:
             "Stale work-dir purge: removed {} entries, {} errors", len(removed), len(errors)
         )
 
-    try:
+    with contextlib.suppress(OSError):
         WORK_DIR_BYTES.set(_dir_size_bytes(settings.work_dir))
-    except OSError:
-        pass
 
     return {"removed": removed, "errors": errors}

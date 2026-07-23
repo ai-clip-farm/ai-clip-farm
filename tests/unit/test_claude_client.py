@@ -2,7 +2,10 @@
 shape, refusal handling, and error mapping. `_create` (the tenacity-wrapped
 API call) is mocked directly so these tests never touch the network.
 """
+
 from __future__ import annotations
+
+from typing import ClassVar
 
 import anthropic
 import pytest
@@ -59,7 +62,7 @@ def test_parse_raises_on_schema_mismatch(mocker, anthropic_text_response):
 @pytest.mark.unit
 def test_parse_raises_on_empty_content(mocker):
     class _EmptyResp:
-        content = []
+        content: ClassVar[list] = []
         stop_reason = "end_turn"
         stop_details = None
 

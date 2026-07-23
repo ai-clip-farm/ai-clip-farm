@@ -1,4 +1,5 @@
 """SQLAlchemy engine + session factory shared by API and workers."""
+
 from __future__ import annotations
 
 from collections.abc import Iterator

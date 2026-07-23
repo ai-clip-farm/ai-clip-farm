@@ -13,6 +13,7 @@ Every source is validated before touching yt-dlp/ffmpeg:
     catching truncated downloads and corrupted uploads immediately instead of
     deep inside a 20-minute transcription run.
 """
+
 from __future__ import annotations
 
 import shutil

@@ -12,6 +12,7 @@ Rate limiting: slowapi (a Flask-limiter-style wrapper over `limits`), backed
 by Redis so limits are shared correctly across multiple API replicas instead
 of each process keeping its own in-memory counter.
 """
+
 from __future__ import annotations
 
 import secrets as _secrets

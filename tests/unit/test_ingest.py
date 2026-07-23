@@ -10,6 +10,7 @@ not the original `app.core.validation.<name>` / `app.pipeline.ffmpeg_utils.<name
 location, or the mock silently never takes effect (the classic
 "patch where it's looked up, not where it's defined" mocking pitfall).
 """
+
 from __future__ import annotations
 
 import pytest
@@ -32,7 +33,8 @@ class TestIngestYoutube:
 
         fake_ydl = mocker.MagicMock()
         fake_ydl.__enter__.return_value.extract_info.return_value = {
-            "title": "A Great Video", "duration": 120.5,
+            "title": "A Great Video",
+            "duration": 120.5,
         }
         mocker.patch("yt_dlp.YoutubeDL", return_value=fake_ydl)
         mocker.patch("app.pipeline.ingest.validate_media_file", return_value={})
