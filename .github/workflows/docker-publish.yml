@@ -1,0 +1,74 @@
+name: Docker Publish
+
+# Builds and pushes the production image to GitHub Container Registry
+# (ghcr.io) — no separate Docker Hub account needed, and it inherits the
+# repo's existing GitHub auth via GITHUB_TOKEN.
+#
+# This runs independently of ci.yml on the same push event (GitHub Actions
+# doesn't gate one workflow on another by default). Branch protection on
+# `main` requiring the CI workflow to pass before merge is what actually
+# keeps a broken build off `main` — see docs/DEPLOYMENT.md's CI/CD section
+# for the one-time repo-settings step. If you need a hard *within-workflow*
+# gate instead (e.g. for a fork without branch protection configured),
+# switch this trigger to `workflow_run` keyed off the CI workflow's
+# `completed`/`success` conclusion.
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  workflow_dispatch: {}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          # Digest reference (not a tag) — exact, unambiguous regardless of
+          # how metadata-action formatted the sha/branch tags above.
+          image-ref: "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
+          format: table
+          exit-code: "0"  # advisory — report but don't block; tighten to "1" once triaged
+          severity: "CRITICAL,HIGH"

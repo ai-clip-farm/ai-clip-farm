@@ -1,0 +1,75 @@
+[project]
+name = "ai-clip-farm"
+version = "1.0.0"
+description = "Local-first automated vertical clip generation pipeline"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",     # pycodestyle / pyflakes
+    "I",               # isort
+    "UP",              # pyupgrade
+    "B",               # bugbear (common bug patterns)
+    "C4",              # comprehensions
+    "SIM",             # simplify
+    "RUF",             # ruff-specific
+]
+ignore = [
+    "E501",  # line length is handled by the formatter, not worth blocking on
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]  # asserts are expected in tests
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+exclude = ["alembic/", "tests/"]
+
+[[tool.mypy.overrides]]
+module = ["cv2.*", "mediapipe.*", "faster_whisper.*", "yt_dlp.*", "slowapi.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra --strict-markers --cov=app --cov-report=term-missing --cov-report=xml"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "integration: full-pipeline / multi-component tests (slower)",
+    "unit: fast, isolated unit tests",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "app/web/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "def __repr__",
+]
+# Honest starting gate: this was set by writing tests without ever running
+# them in this environment (no Python interpreter available — see
+# docs/PERFORMANCE.md "What was and wasn't verified"). CI's first real run
+# reports the true number; ratchet this up toward 90 from there rather than
+# trusting an unverified figure. Do not raise this without a green CI run
+# backing it.
+fail_under = 70

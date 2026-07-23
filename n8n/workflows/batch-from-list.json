@@ -1,0 +1,57 @@
+{
+  "name": "Clip Farm — Nightly Batch",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 24 }] }
+      },
+      "id": "cron",
+      "name": "Every 24h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Replace with a Google Sheets / Notion / DB node in production.\n// Emits one item per URL to process in the nightly batch.\nreturn [\n  { json: { url: 'https://www.youtube.com/watch?v=EXAMPLE1', title: 'Episode 1' } },\n  { json: { url: 'https://www.youtube.com/watch?v=EXAMPLE2', title: 'Episode 2' } }\n];"
+      },
+      "id": "list",
+      "name": "URL List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "loop",
+      "name": "Loop (rate-limit)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CLIPFARM_API }}/api/videos",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source_type\": \"youtube\",\n  \"source_ref\": \"{{ $json.url }}\",\n  \"title\": \"{{ $json.title }}\"\n}",
+        "options": {}
+      },
+      "id": "submit",
+      "name": "Submit To Clip Farm",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Every 24h": { "main": [[{ "node": "URL List", "type": "main", "index": 0 }]] },
+    "URL List": { "main": [[{ "node": "Loop (rate-limit)", "type": "main", "index": 0 }]] },
+    "Loop (rate-limit)": { "main": [[{ "node": "Submit To Clip Farm", "type": "main", "index": 0 }]] },
+    "Submit To Clip Farm": { "main": [[{ "node": "Loop (rate-limit)", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "tags": ["clip-farm"]
+}

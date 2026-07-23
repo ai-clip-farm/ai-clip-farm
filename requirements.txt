@@ -1,0 +1,50 @@
+# ---- Core API / worker ----
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-multipart==0.0.20
+jinja2==3.1.5
+
+# ---- Claude ----
+# Needs a build new enough for output_config/effort, adaptive thinking,
+# and the claude-opus-4-8 model id.
+anthropic>=0.116.0
+
+# ---- Async jobs ----
+celery[redis]==5.4.0
+redis==5.2.1
+flower==2.0.1
+
+# ---- Database ----
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+
+# ---- Transcription (local Whisper) ----
+faster-whisper==1.1.0
+
+# ---- Media ingest ----
+yt-dlp>=2024.12.23
+
+# ---- Speaker tracking / vision ----
+mediapipe==0.10.20
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+
+# ---- Security ----
+slowapi==0.1.9
+
+# ---- Monitoring ----
+prometheus-client==0.21.1
+prometheus-fastapi-instrumentator==7.0.0
+
+# ---- Utilities ----
+# Loosened from an exact pin: the anthropic SDK bundles its own httpx
+# constraint, and pinning both exactly is a common source of a pip
+# resolution conflict on upgrade. `>=` keeps us compatible with whatever
+# anthropic requires while still excluding known-broken major versions.
+httpx>=0.27,<1.0
+tenacity==9.0.0
+python-slugify==8.0.4
+loguru==0.7.3

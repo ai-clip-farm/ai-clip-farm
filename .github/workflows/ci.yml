@@ -1,0 +1,132 @@
+name: CI
+
+# Runs on every push and PR. This is the real verification gate for this
+# project — the codebase was written without a local Python interpreter
+# available, so this workflow's first green run is the first time any of it
+# actually executes. See docs/PERFORMANCE.md "What was and wasn't verified".
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: ruff check
+        run: ruff check app tests
+      - name: ruff format check
+        run: ruff format --check app tests
+      - name: mypy
+        run: mypy app
+        continue-on-error: true  # advisory until the codebase is fully typed; tighten once green
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: clipfarm
+          POSTGRES_PASSWORD: clipfarm
+          POSTGRES_DB: clipfarm_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U clipfarm"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # SQLite is used by the test suite itself (see tests/conftest.py) for
+      # speed and isolation; Postgres/Redis services above exist so a future
+      # test that specifically wants real-service coverage (e.g. Alembic
+      # migration validation) has them available without a workflow change.
+      ANTHROPIC_API_KEY: test-key
+      ENVIRONMENT: development
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libgl1 libglib2.0-0 libgomp1
+      - run: pip install -r requirements-dev.txt
+      - name: Run test suite with coverage
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-report=html
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-html
+          path: htmlcov/
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+
+  validate-migrations:
+    runs-on: ubuntu-latest
+    needs: test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: clipfarm
+          POSTGRES_PASSWORD: clipfarm
+          POSTGRES_DB: clipfarm_migrate_check
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U clipfarm"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://clipfarm:clipfarm@localhost:5432/clipfarm_migrate_check
+      ANTHROPIC_API_KEY: test-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: alembic upgrade head applies cleanly to a fresh database
+        run: alembic upgrade head
+      - name: alembic downgrade base is reversible
+        run: alembic downgrade base
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (no push — see docker-publish.yml for that)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: ai-clip-farm:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Clip Farm</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◈</span>
+      <h1>AI Clip Farm</h1>
+    </div>
+    <div class="subtitle">Long-form → 10–15 viral vertical clips, fully automated</div>
+  </header>
+
+  <main class="container">
+    <!-- Ingest panel -->
+    <section class="card ingest">
+      <div class="tabs">
+        <button class="tab active" data-tab="youtube">YouTube URL</button>
+        <button class="tab" data-tab="upload">Upload MP4</button>
+      </div>
+
+      <form id="youtube-form" class="tab-panel active">
+        <input type="url" id="yt-url" placeholder="https://youtube.com/watch?v=..." required />
+        <input type="text" id="yt-title" placeholder="Title (optional)" />
+        <button type="submit" class="btn primary">Generate clips</button>
+      </form>
+
+      <form id="upload-form" class="tab-panel">
+        <label class="filedrop" id="filedrop">
+          <input type="file" id="file-input" accept="video/mp4" hidden />
+          <span id="file-label">Drop an MP4 here or click to browse</span>
+        </label>
+        <button type="submit" class="btn primary">Upload &amp; generate</button>
+      </form>
+    </section>
+
+    <!-- Video list -->
+    <section class="videos">
+      <h2>Jobs</h2>
+      <div id="video-list" class="video-list"></div>
+    </section>
+  </main>
+
+  <!-- Clip detail modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-inner">
+      <button class="modal-close" onclick="closeModal()">×</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

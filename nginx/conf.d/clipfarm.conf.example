@@ -1,0 +1,75 @@
+# ============================================================================
+# Rename this file to `clipfarm.conf` and replace CHANGE_ME_DOMAIN with your
+# real domain before starting the prod stack. Kept as `.example` so a fresh
+# clone never accidentally serves with a placeholder ServerName (nginx would
+# start fine but TLS/host-matching would be silently wrong).
+#
+# Initial certificate issuance (one-time, before this config's 443 block can
+# work — see docs/DEPLOYMENT.md for the full sequence):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     run --rm certbot certonly --webroot -w /var/www/certbot \
+#     -d CHANGE_ME_DOMAIN --email you@example.com --agree-tos --no-eff-email
+# ============================================================================
+
+# Plain HTTP: serves ACME challenge files for certbot, redirects everything
+# else to HTTPS.
+server {
+    listen 80;
+    server_name CHANGE_ME_DOMAIN;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location /nginx-health {
+        return 200 "ok";
+        add_header Content-Type text/plain;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name CHANGE_ME_DOMAIN;
+
+    ssl_certificate     /etc/letsencrypt/live/CHANGE_ME_DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/CHANGE_ME_DOMAIN/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    client_max_body_size 2200m;
+
+    location / {
+        proxy_pass http://api:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Large clip downloads / long-running requests.
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+    }
+
+    # Celery queue monitor, reached at https://CHANGE_ME_DOMAIN/flower/.
+    # Flower's own BasicAuth (set via FLOWER_USER/FLOWER_PASSWORD in .env)
+    # still applies — this is TLS termination, not a replacement for auth.
+    location /flower/ {
+        proxy_pass http://flower:5555/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

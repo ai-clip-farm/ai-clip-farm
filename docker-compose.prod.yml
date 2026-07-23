@@ -1,0 +1,98 @@
+# ============================================================================
+# Production overlay — apply on top of the base compose file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Changes vs. the dev stack:
+#   - nginx terminates TLS (Let's Encrypt via certbot) and reverse-proxies to
+#     the API. Set BIND_ADDR=127.0.0.1 in .env (docs/DEPLOYMENT.md does this
+#     for you) so api/worker-metrics/flower are only reachable from the host
+#     itself — nginx is the only port reachable from the public internet.
+#     (Not using a bare `ports: []` override here: Compose concatenates list
+#     fields like `ports` across -f files rather than replacing them, so an
+#     empty override wouldn't actually remove the base mapping — the
+#     BIND_ADDR env var is the portable way to get the same effect across
+#     Compose versions.)
+#   - n8n is not started by default in production (enable explicitly with
+#     `--profile automation` if you use it).
+#   - Postgres/Redis get larger resource ceilings appropriate for sustained
+#     "hundreds of videos/day" load; tune to your host's actual capacity.
+#   - `restart: always` everywhere (vs. `unless-stopped`) so a host reboot
+#     always brings the stack back without an operator needing to `docker
+#     compose up` manually.
+# ============================================================================
+services:
+  api:
+    restart: always
+    environment:
+      ENVIRONMENT: production
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 2g }
+
+  worker:
+    restart: always
+    environment:
+      ENVIRONMENT: production
+    deploy:
+      resources:
+        limits: { cpus: "6", memory: 10g }
+
+  beat:
+    restart: always
+    environment:
+      ENVIRONMENT: production
+
+  postgres:
+    restart: always
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 2g }
+
+  redis:
+    restart: always
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1g }
+
+  flower:
+    restart: always
+
+  n8n:
+    profiles: ["automation"]
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot-www:/var/www/certbot:ro
+      - certbot-certs:/etc/letsencrypt:ro
+    depends_on:
+      - api
+      - flower
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - certbot-www:/var/www/certbot
+      - certbot-certs:/etc/letsencrypt
+    # Renews twice a day if due; a no-op otherwise. Initial certificate
+    # issuance is a one-time manual step — see docs/DEPLOYMENT.md.
+    entrypoint: >
+      sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot;
+      sleep 12h & wait $${!}; done;'
+
+volumes:
+  certbot-www:
+  certbot-certs:

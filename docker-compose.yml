@@ -1,0 +1,169 @@
+# ============================================================================
+# AI Clip Farm — full local/dev stack.
+#   api      FastAPI + web UI            -> http://localhost:8000
+#   worker   Celery (heavy pipeline)     -> renders clips
+#   beat     Celery Beat (scheduler)     -> hourly cleanup, daily failure report
+#   postgres metadata store
+#   redis    Celery broker + result backend
+#   flower   Celery queue monitor (BasicAuth-protected) -> http://localhost:5555
+#   n8n      optional automation layer   -> http://localhost:5678
+#
+# For a production deployment use docker-compose.yml together with
+# docker-compose.prod.yml (adds nginx/TLS, tighter resource limits, no
+# dev-only port exposure): see docs/DEPLOYMENT.md.
+# ============================================================================
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-app-image: &app-image
+  build: .
+  restart: unless-stopped
+  env_file: .env
+  logging: *default-logging
+  volumes:
+    - ./data:/data
+    - whisper-cache:/home/appuser/.cache
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1g }
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["redis-server", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 768m }
+
+  api:
+    <<: *app-image
+    ports:
+      # In production, set BIND_ADDR=127.0.0.1 in .env so this is reachable
+      # only from the host itself — nginx (docker-compose.prod.yml) talks to
+      # `api:8000` over the internal Docker network regardless of this
+      # mapping, and the public internet should only ever reach nginx.
+      - "${BIND_ADDR:-0.0.0.0}:8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1g }
+
+  worker:
+    <<: *app-image
+    command: celery -A app.workers.celery_app.celery_app worker
+             --loglevel=INFO --concurrency=${RENDER_CONCURRENCY:-2}
+    healthcheck:
+      # Pings any reachable worker, not just this replica specifically —
+      # `$HOSTNAME`-scoped pings depend on a shell feature (bash) not
+      # guaranteed under `/bin/sh`. Fine for the common single-worker-replica
+      # case; if you `--scale worker=N`, a healthy sibling can mask one dead
+      # replica here — rely on Prometheus (:9100/metrics) for per-replica
+      # signal at that scale instead.
+      test: ["CMD-SHELL", "celery -A app.workers.celery_app.celery_app inspect ping --timeout 10 | grep -q OK"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+    ports:
+      # Prometheus scrape target for worker-side pipeline metrics
+      # (app.core.metrics). Set BIND_ADDR=127.0.0.1 in production so it's
+      # only reachable from the host itself, not the public internet.
+      - "${BIND_ADDR:-0.0.0.0}:9100:9100"
+    deploy:
+      resources:
+        limits: { cpus: "4", memory: 6g }
+
+  beat:
+    <<: *app-image
+    command: celery -A app.workers.celery_app.celery_app beat --loglevel=INFO
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/celerybeat.pid || exit 0"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256m }
+
+  # Celery queue monitor. BasicAuth-protected — Flower has no auth of its own
+  # otherwise, and it can trigger/revoke tasks, so it must never be exposed
+  # unauthenticated (a prior version of this compose file bound it to the
+  # host with no auth at all).
+  flower:
+    <<: *app-image
+    command: >
+      celery -A app.workers.celery_app.celery_app flower --port=5555
+      --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:?set FLOWER_PASSWORD in .env}
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:5555:5555"
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256m }
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      CLIPFARM_API: http://api:8000
+      GENERIC_TIMEZONE: UTC
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./n8n/workflows:/workflows
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 512m }
+
+volumes:
+  pgdata:
+  n8n-data:
+  whisper-cache:

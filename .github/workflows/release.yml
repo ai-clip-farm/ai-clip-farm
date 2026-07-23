@@ -1,0 +1,57 @@
+name: Release
+
+# Fires on a `vX.Y.Z` tag push: builds release notes from commits since the
+# previous tag and publishes a GitHub Release. Does not build/push Docker
+# images itself — docker-publish.yml already does that for the same tag
+# (its `tags: ["v*.*.*"]` trigger fires in parallel), keeping "what artifact
+# gets built" and "what the changelog says" as two independently-testable
+# concerns instead of one large workflow.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history, needed to diff against the previous tag
+
+      - name: Determine previous tag
+        id: prev_tag
+        run: |
+          PREV=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || echo "")
+          echo "tag=$PREV" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ -n "${{ steps.prev_tag.outputs.tag }}" ]; then
+            RANGE="${{ steps.prev_tag.outputs.tag }}..${GITHUB_REF_NAME}"
+          else
+            RANGE="${GITHUB_REF_NAME}"
+          fi
+          {
+            echo "changelog<<CHANGELOG_EOF"
+            echo "## Changes"
+            git log "$RANGE" --pretty="format:- %s (%h)" --no-merges
+            echo ""
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body: |
+            ${{ steps.changelog.outputs.changelog }}
+
+            **Docker image:** `ghcr.io/${{ github.repository }}:${{ github.ref_name }}`
+            See [docs/DEPLOYMENT.md](../../blob/main/docs/DEPLOYMENT.md) for upgrade steps.
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
+          generate_release_notes: true
