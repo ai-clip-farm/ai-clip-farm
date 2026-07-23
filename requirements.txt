@@ -40,7 +40,7 @@ yt-dlp>=2026.7.4
 # fails that platform's `pip install` under QEMU emulation in CI.
 mediapipe==0.10.18
 opencv-python-headless==4.10.0.84
-numpy==1.26.4
+numpy==2.4.6
 
 # ---- Security ----
 slowapi==0.1.10
