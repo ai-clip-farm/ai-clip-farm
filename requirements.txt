@@ -29,7 +29,7 @@ faster-whisper==1.1.0
 requests>=2.31,<3.0
 
 # ---- Media ingest ----
-yt-dlp>=2024.12.23
+yt-dlp>=2026.7.4
 
 # ---- Speaker tracking / vision ----
 # 0.10.18, not a newer version: mediapipe only publishes linux_aarch64 wheels
