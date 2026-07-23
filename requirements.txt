@@ -18,7 +18,7 @@ flower==2.0.1
 
 # ---- Database ----
 sqlalchemy==2.0.36
-alembic==1.14.0
+alembic==1.18.5
 psycopg[binary]==3.2.3
 
 # ---- Transcription (local Whisper) ----
