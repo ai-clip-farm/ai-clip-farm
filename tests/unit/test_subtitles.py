@@ -1,7 +1,8 @@
 """Unit tests for app.pipeline.subtitles — ASS generation, special-character
-escaping (the fix for transcribed words containing `{`/`}`/`\` corrupting
-override tags), and the empty-clip guard. No ffmpeg process is invoked here;
-`burn()` (which shells out) is covered by test_ffmpeg_utils.py instead.
+escaping (the fix for transcribed words containing `{`, `}`, or a backslash
+corrupting override tags), and the empty-clip guard. No ffmpeg process is
+invoked here; `burn()` (which shells out) is covered by test_ffmpeg_utils.py
+instead.
 """
 from __future__ import annotations
 

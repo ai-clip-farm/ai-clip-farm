@@ -5,9 +5,16 @@ API_KEY is unset — local dev) and rate-limited per `app.core.security`.
 Uploads and YouTube submissions are validated (`app.core.validation`) before
 anything touches disk or enqueues a Celery task, so bad input fails fast with
 a 400 instead of wasting a worker cycle.
-"""
-from __future__ import annotations
 
+Deliberately does NOT use `from __future__ import annotations`: FastAPI needs
+the *real* `UploadFile` class (not a stringified forward-reference) at route-
+registration time to special-case multipart file parameters. Combining the
+two raises `FastAPIError: Invalid args for response field! ... ForwardRef
+('UploadFile')` at import time — a known FastAPI/Starlette incompatibility,
+not something request-specific. Safe to omit here: every annotation in this
+file (`str | None`, `list[str]`) is native Python 3.10+ runtime syntax
+(PEP 604 / PEP 585), so nothing here actually needed postponed evaluation.
+"""
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
