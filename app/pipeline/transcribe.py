@@ -101,6 +101,7 @@ def _faster_whisper(audio: Path, on_progress: ProgressCb | None) -> dict:
             word_timestamps=True,  # required for karaoke subtitles + snapping
             vad_filter=True,  # drop silence -> cleaner segments
             beam_size=5,
+            task=settings.whisper_task,
         )
 
         segments: list[dict] = []

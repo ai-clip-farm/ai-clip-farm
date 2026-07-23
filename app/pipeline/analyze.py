@@ -52,6 +52,8 @@ mid-sentence.
 - Return between {min_n} and {max_n} clips, ranked best-first by score.
 - Timestamps must fall within the transcript's time range.
 - categories must only contain values from: hook, emotional, informative, funny, viral.
+- Write title_hint and reason in English, regardless of the transcript's \
+original language — the target audience is English-speaking.
 """
 
 

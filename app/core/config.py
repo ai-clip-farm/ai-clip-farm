@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     whisper_compute_type: str = "int8"
     # Cache one loaded model per worker process instead of reloading per task.
     whisper_cache_models: bool = True
+    # "translate" always produces English text regardless of the spoken
+    # language (a no-op for already-English audio) — the default audience for
+    # generated clips is English-speaking, so subtitles/transcript/downstream
+    # Claude prompts are English by default even when the source video isn't.
+    # Set to "transcribe" to keep the original spoken language instead.
+    whisper_task: Literal["transcribe", "translate"] = "translate"
 
     # --- Clip selection ---
     min_clips_per_video: int = 10

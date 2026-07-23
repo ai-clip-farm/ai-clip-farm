@@ -25,7 +25,9 @@ Shorts). Given a clip transcript, produce:
 - hook: <=60 chars of on-screen text for the first frame that stops the scroll.
 - description: a 1-2 sentence caption.
 - hashtags: 6-10 relevant, discoverable hashtags (lowercase, no '#' prefix, no spaces).
-Match the tone and topic of the clip. Do not invent facts not in the transcript."""
+Match the tone and topic of the clip. Do not invent facts not in the transcript.
+Write everything in English, regardless of the transcript's original language —
+the target audience is English-speaking."""
 
 
 def generate(clip_transcript: str, context_title: str = "") -> ClipMetadata:
