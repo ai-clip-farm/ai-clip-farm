@@ -45,6 +45,6 @@ prometheus-fastapi-instrumentator==7.0.0
 # resolution conflict on upgrade. `>=` keeps us compatible with whatever
 # anthropic requires while still excluding known-broken major versions.
 httpx>=0.27,<1.0
-tenacity==9.0.0
+tenacity==9.1.4
 python-slugify==8.0.4
 loguru==0.7.3
